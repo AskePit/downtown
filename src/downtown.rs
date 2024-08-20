@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
+type Block = Arc<str>;
+type BlocksSlice = Arc<[Block]>;
+type ParseUnit = BlocksSlice;
+
 pub struct Markdown2Html {
-    input: Vec<Arc<str>>,
+    input: Vec<Block>,
     parse_context: ParseContext,
 }
 
@@ -19,14 +23,14 @@ enum UnitType {
 }
 
 struct ParseContext {
-    parse_units: Vec<u16>, // how much input elements do occupy one logical parse unit
+    parse_units: Vec<ParseUnit>,
     unit_types: Vec<UnitType>,
 }
 
 struct GenerationContext<'gen> {
-    parse_units: &'gen Vec<u16>, // how much input elements do occupy one logical parse unit
+    parse_units: &'gen Vec<ParseUnit>,
     unit_types: &'gen Vec<UnitType>,
-    input: &'gen Vec<Arc<str>>,
+    input: &'gen Vec<Block>,
     output: Vec<String>,
     cursor: u32,
 }
@@ -41,9 +45,9 @@ impl Markdown2Html {
 
         let parse_context = Markdown2Html::analyze_input(&input);
 
-        // for (c, u) in parse_context.parse_units.iter().zip(parse_context.unit_types.iter()) {
-        //     println!("{} {:?}", c, u);
-        // }
+        for (c, u) in parse_context.parse_units.iter().zip(parse_context.unit_types.iter()) {
+            println!("{:?} {:?}", c, u);
+        }
 
         Markdown2Html {
             input,
@@ -67,16 +71,18 @@ impl Markdown2Html {
         return output;
     }
 
-    fn analyze_input(input: &Vec<Arc<str>>) -> ParseContext {
+    fn analyze_input(input: &Vec<Block>) -> ParseContext {
         let mut context = ParseContext {
             parse_units: vec![],
             unit_types: vec![],
         };
 
         let mut multiline_state = false;
-        let mut multiline_counter: u16 = 0;
+        let mut multiline_counter: usize = 0;
 
-        for block in input {
+        let mut block_start: usize = 0;
+
+        for (i, block) in input.iter().enumerate() {
             if multiline_state {
                 let state_type = context.unit_types.last().unwrap();
                 match state_type {
@@ -85,7 +91,7 @@ impl Markdown2Html {
                             multiline_counter += 1;
                             continue;
                         } else {
-                            context.parse_units.push(multiline_counter);
+                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
                             multiline_state = false;
                         }
                     }
@@ -94,7 +100,7 @@ impl Markdown2Html {
                             multiline_counter += 1;
                             continue;
                         } else {
-                            context.parse_units.push(multiline_counter);
+                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
                             multiline_state = false;
                         }
                     }
@@ -102,7 +108,7 @@ impl Markdown2Html {
                         multiline_counter += 1;
 
                         if block.starts_with("$$") {
-                            context.parse_units.push(multiline_counter);
+                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
                             multiline_state = false;
                         }
                         continue;
@@ -111,7 +117,7 @@ impl Markdown2Html {
                         multiline_counter += 1;
 
                         if block.starts_with("```") {
-                            context.parse_units.push(multiline_counter);
+                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
                             multiline_state = false;
                         }
                         continue;
@@ -123,38 +129,42 @@ impl Markdown2Html {
 
             if block.starts_with("# ") {
                 context.unit_types.push(UnitType::Header(1));
-                context.parse_units.push(1);
+                context.parse_units.push(Arc::from( &input[i..i+1]));
             } else if block.starts_with("## ") {
                 context.unit_types.push(UnitType::Header(2));
-                context.parse_units.push(1);
+                context.parse_units.push(Arc::from( &input[i..i+1]));
             } else if block.starts_with("### ") {
                 context.unit_types.push(UnitType::Header(3));
-                context.parse_units.push(1);
+                context.parse_units.push(Arc::from( &input[i..i+1]));
             } else if block.starts_with("#### ") {
                 context.unit_types.push(UnitType::Header(4));
-                context.parse_units.push(1);
+                context.parse_units.push(Arc::from( &input[i..i+1]));
             } else if block.starts_with("![") {
                 context.unit_types.push(UnitType::Image);
-                context.parse_units.push(1);
+                context.parse_units.push(Arc::from( &input[i..i+1]));
             } else if block.starts_with("- ") {
                 context.unit_types.push(UnitType::List);
                 multiline_state = true;
                 multiline_counter = 1;
+                block_start = i;
             } else if block.starts_with("$$") {
                 context.unit_types.push(UnitType::Latex);
                 multiline_state = true;
                 multiline_counter = 1;
+                block_start = i;
             } else if block.starts_with("```") {
                 context.unit_types.push(UnitType::Code);
                 multiline_state = true;
                 multiline_counter = 1;
+                block_start = i;
             } else if block.starts_with(">") {
                 context.unit_types.push(UnitType::Callout);
                 multiline_state = true;
                 multiline_counter = 1;
+                block_start = i;
             } else {
                 context.unit_types.push(UnitType::Text);
-                context.parse_units.push(1);
+                context.parse_units.push(Arc::from( &input[i..i+1]));
             }
         }
 
@@ -162,7 +172,7 @@ impl Markdown2Html {
             let state_type = context.unit_types.last().unwrap();
             match state_type {
                 UnitType::List | UnitType::Callout => {
-                    context.parse_units.push(multiline_counter);
+                    context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
                 }
                 _ => {}
             }
