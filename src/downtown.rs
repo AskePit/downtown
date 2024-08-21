@@ -53,7 +53,7 @@ impl Markdown2Html {
         output_vec.join("\n")
     }
 
-    fn analyze_input(input: &Vec<Block>) -> ParseContext {
+    fn analyze_input(input: &[Block]) -> ParseContext {
         let mut context = ParseContext {
             parse_units: vec![],
             unit_types: vec![],
