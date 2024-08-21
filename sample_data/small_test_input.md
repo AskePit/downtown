@@ -22,7 +22,7 @@ Engines considered and rejected:
 - [Unity](https://unity.com/). Can't say much. It's the most popular choice for 2D game development. But somehow, my heart wasn't in writing in C#. Also, for some entirely subjective reason, I had a skeptical attitude towards the engine.
 - [Bevy](https://bevyengine.org/). A very young engine where you need to write the game entirely in Rust—that was appealing. But fatal flaws overshadowed everything: no editor, the engine brutally enforces the ECS approach, and the game's architecture must literally bend to fit this paradigm. So, you won't migrate to another engine at all—you just throw away all the code and start from scratch.
 
-I can say right away that I haven't been disappointed with the choice, and the engine has never let me down. What can I say about Godot over time:
+I can say **right away** that I haven't been **disappointed** with the *choice*, and the engine has *never* let me **down**. What can I say about Godot over **time:
 
 - It has its own scripting language, [GDScript](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_basics.html), similar to Python. It's simple and convenient.
 - As an alternative, you can code in C++ or C#. If desired, Godot has bindings for other languages, such as [Rust](https://github.com/godot-rust/gdext). Going ahead—in the end, C++ came in handy and useful for the project.
@@ -44,7 +44,7 @@ $$
 
 
 
-There is a high probability that I will want to use different metrics, so now I have a universal function for this in my arsenal:
+There is a `high probability` that I will want to use `different metrics`, so now I have a universal function for this in my arsenal:
 
 ```cpp
 double distance(Point a, Point b, SpaceMetric metric = SpaceMetric::Euqlid)

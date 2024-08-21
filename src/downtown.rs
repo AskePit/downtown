@@ -5,13 +5,12 @@ type BlocksSlice = Arc<[Block]>;
 type ParseUnit = BlocksSlice;
 
 pub struct Markdown2Html {
-    input: Vec<Block>,
     parse_context: ParseContext,
 }
 
 type Level = u8;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum UnitType {
     Header(Level),
     Text,
@@ -27,48 +26,31 @@ struct ParseContext {
     unit_types: Vec<UnitType>,
 }
 
-struct GenerationContext<'gen> {
-    parse_units: &'gen Vec<ParseUnit>,
-    unit_types: &'gen Vec<UnitType>,
-    input: &'gen Vec<Block>,
-    output: Vec<String>,
-    cursor: u32,
-}
-
 impl Markdown2Html {
     pub fn new(input: String) -> Markdown2Html {
         let input: Vec<_> = input
             .split('\n')
             .filter(|x| !x.trim().is_empty())
-            .map(|x| Arc::from(x))
+            .map(|x| Arc::from(x.trim_end()))
             .collect();
 
         let parse_context = Markdown2Html::analyze_input(&input);
 
-        for (c, u) in parse_context.parse_units.iter().zip(parse_context.unit_types.iter()) {
-            println!("{:?} {:?}", c, u);
-        }
-
-        Markdown2Html {
-            input,
-            parse_context,
-        }
+        Markdown2Html { parse_context }
     }
 
     pub fn generate_html(&self) -> String {
-        let mut output = String::new();
+        let mut output_vec = vec!["".to_owned(); self.parse_context.parse_units.len()];
 
-        let mut context = GenerationContext {
-            parse_units: &self.parse_context.parse_units,
-            unit_types: &self.parse_context.unit_types,
-            input: &self.input,
-            output: vec!["".to_owned(); self.parse_context.parse_units.len()],
-            cursor: 0,
-        };
+        for i in 0..self.parse_context.parse_units.len() {
+            let parse_unit = self.parse_context.parse_units[i].clone();
+            let unit_type = self.parse_context.unit_types[i];
+            let output = &mut output_vec[i];
 
-        todo!();
+            process_unit(parse_unit, unit_type, output);
+        }
 
-        return output;
+        output_vec.join("\n")
     }
 
     fn analyze_input(input: &Vec<Block>) -> ParseContext {
@@ -91,16 +73,20 @@ impl Markdown2Html {
                             multiline_counter += 1;
                             continue;
                         } else {
-                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
+                            context.parse_units.push(Arc::from(
+                                &input[block_start..block_start + multiline_counter],
+                            ));
                             multiline_state = false;
                         }
                     }
                     UnitType::Callout => {
-                        if block.starts_with("> ") {
+                        if block.starts_with(">") {
                             multiline_counter += 1;
                             continue;
                         } else {
-                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
+                            context.parse_units.push(Arc::from(
+                                &input[block_start..block_start + multiline_counter],
+                            ));
                             multiline_state = false;
                         }
                     }
@@ -108,7 +94,9 @@ impl Markdown2Html {
                         multiline_counter += 1;
 
                         if block.starts_with("$$") {
-                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
+                            context.parse_units.push(Arc::from(
+                                &input[block_start..block_start + multiline_counter],
+                            ));
                             multiline_state = false;
                         }
                         continue;
@@ -117,7 +105,9 @@ impl Markdown2Html {
                         multiline_counter += 1;
 
                         if block.starts_with("```") {
-                            context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
+                            context.parse_units.push(Arc::from(
+                                &input[block_start..block_start + multiline_counter],
+                            ));
                             multiline_state = false;
                         }
                         continue;
@@ -129,19 +119,19 @@ impl Markdown2Html {
 
             if block.starts_with("# ") {
                 context.unit_types.push(UnitType::Header(1));
-                context.parse_units.push(Arc::from( &input[i..i+1]));
+                context.parse_units.push(Arc::from(&input[i..i + 1]));
             } else if block.starts_with("## ") {
                 context.unit_types.push(UnitType::Header(2));
-                context.parse_units.push(Arc::from( &input[i..i+1]));
+                context.parse_units.push(Arc::from(&input[i..i + 1]));
             } else if block.starts_with("### ") {
                 context.unit_types.push(UnitType::Header(3));
-                context.parse_units.push(Arc::from( &input[i..i+1]));
+                context.parse_units.push(Arc::from(&input[i..i + 1]));
             } else if block.starts_with("#### ") {
                 context.unit_types.push(UnitType::Header(4));
-                context.parse_units.push(Arc::from( &input[i..i+1]));
+                context.parse_units.push(Arc::from(&input[i..i + 1]));
             } else if block.starts_with("![") {
                 context.unit_types.push(UnitType::Image);
-                context.parse_units.push(Arc::from( &input[i..i+1]));
+                context.parse_units.push(Arc::from(&input[i..i + 1]));
             } else if block.starts_with("- ") {
                 context.unit_types.push(UnitType::List);
                 multiline_state = true;
@@ -164,7 +154,7 @@ impl Markdown2Html {
                 block_start = i;
             } else {
                 context.unit_types.push(UnitType::Text);
-                context.parse_units.push(Arc::from( &input[i..i+1]));
+                context.parse_units.push(Arc::from(&input[i..i + 1]));
             }
         }
 
@@ -172,7 +162,9 @@ impl Markdown2Html {
             let state_type = context.unit_types.last().unwrap();
             match state_type {
                 UnitType::List | UnitType::Callout => {
-                    context.parse_units.push(Arc::from(&input[block_start..block_start+multiline_counter]));
+                    context.parse_units.push(Arc::from(
+                        &input[block_start..block_start + multiline_counter],
+                    ));
                 }
                 _ => {}
             }
@@ -180,10 +172,153 @@ impl Markdown2Html {
 
         context
     }
+}
 
-    fn parse_paragraph(&mut self) {
-        todo!();
+fn process_unit(markdown_unit: ParseUnit, unit_type: UnitType, output: &mut String) {
+    if let UnitType::Header(level) = unit_type {
+        process_header(level, markdown_unit, output);
+        return;
     }
+
+    let f = match unit_type {
+        UnitType::Text => process_text,
+        UnitType::List => process_list,
+        UnitType::Image => process_image,
+        UnitType::Latex => process_latex,
+        UnitType::Code => process_code,
+        UnitType::Callout => process_callout,
+        _ => process_text,
+    };
+
+    f(markdown_unit, output);
+}
+
+fn process_text(markdown_unit: ParseUnit, output: &mut String) {
+    assert_eq!(markdown_unit.len(), 1);
+
+    let text = markdown_unit.first().unwrap().trim();
+    let text = process_inline_formatting(text);
+    *output = format!("<p>{}</p>", text);
+}
+
+fn process_header(level: Level, markdown_unit: ParseUnit, output: &mut String) {
+    assert_eq!(markdown_unit.len(), 1);
+
+    let text = markdown_unit
+        .first()
+        .unwrap()
+        .trim_start_matches('#')
+        .trim();
+    let text = process_inline_formatting(text);
+    *output = format!("<h{}>{}</h{}>", level, text, level);
+}
+
+fn process_list(markdown_unit: ParseUnit, output: &mut String) {
+    *output = "<ul>\n".to_owned();
+    for el in markdown_unit.iter() {
+        let text = el.trim().trim_start_matches('-').trim();
+        let text = process_inline_formatting(text);
+        *output += format!("\t<li>{}</li>\n", text).as_str();
+    }
+    *output += "</ul>";
+}
+
+fn process_image(markdown_unit: ParseUnit, output: &mut String) {
+    assert_eq!(markdown_unit.len(), 1);
+
+    let text = markdown_unit.first().unwrap().trim();
+    let caption = &text[2..text.find("](").unwrap()];
+    let caption = process_inline_formatting(caption);
+    let src = &text[text.find("](").unwrap() + 2..text.len() - 1];
+
+    *output = format!(
+        r#"<div class="picture">
+    <figure>
+        <img src="{src}" alt="{caption}">
+        <figcaption>{caption}</figcaption>
+    </figure>
+</div>"#
+    );
+}
+
+fn process_latex(markdown_unit: ParseUnit, output: &mut String) {
+    *output = format!("<p class=\"latex\">{}</p>", markdown_unit.join("\n"));
+}
+
+fn process_code(markdown_unit: ParseUnit, output: &mut String) {
+    assert!(markdown_unit.len() >= 2);
+
+    let lang = markdown_unit
+        .first()
+        .unwrap()
+        .trim_start_matches('`')
+        .trim();
+    *output = format!(
+        "<pre><code class=\"language-{}\">{}</code></pre>",
+        lang,
+        markdown_unit[1..markdown_unit.len() - 1].join("\n")
+    );
+}
+
+fn process_callout(markdown_unit: ParseUnit, output: &mut String) {
+    *output = "<div class=\"callout\">\n".to_owned();
+    for el in markdown_unit.iter() {
+        let text = el.trim().trim_start_matches('-').trim();
+        let text = process_inline_formatting(text);
+        *output += format!("\t<p>{}</p>\n", text[1..].trim()).as_str();
+    }
+    *output += "</div>";
+}
+
+fn process_inline_formatting(s: impl Into<String>) -> String {
+    let mut res = s.into();
+
+    // bold
+    {
+        let indicies = res.match_indices("**").map(|x| x.0).collect::<Vec<_>>();
+
+        let mut offset_accum: usize = 0;
+        for chunk in indicies.chunks_exact(2) {
+            res.replace_range(chunk[0] + offset_accum..chunk[0] + offset_accum + 2, "<b>");
+            offset_accum += 1;
+            res.replace_range(chunk[1] + offset_accum..chunk[1] + offset_accum + 2, "</b>");
+            offset_accum += 2;
+        }
+    }
+
+    // italics
+    {
+        let indicies = res.match_indices("*").map(|x| x.0).collect::<Vec<_>>();
+
+        let mut offset_accum: usize = 0;
+        for chunk in indicies.chunks_exact(2) {
+            res.replace_range(chunk[0] + offset_accum..chunk[0] + offset_accum + 1, "<i>");
+            offset_accum += 2;
+            res.replace_range(chunk[1] + offset_accum..chunk[1] + offset_accum + 1, "</i>");
+            offset_accum += 3;
+        }
+    }
+
+    // code
+    {
+        let indicies = res.match_indices("`").map(|x| x.0).collect::<Vec<_>>();
+
+        let mut offset_accum: usize = 0;
+        for chunk in indicies.chunks_exact(2) {
+            res.replace_range(
+                chunk[0] + offset_accum..chunk[0] + offset_accum + 1,
+                "<code>",
+            );
+            offset_accum += 5;
+            res.replace_range(
+                chunk[1] + offset_accum..chunk[1] + offset_accum + 1,
+                "</code>",
+            );
+            offset_accum += 6;
+        }
+    }
+
+    res
 }
 
 #[cfg(test)]
@@ -194,5 +329,7 @@ mod tests {
     fn analyze_input() {
         let input = std::fs::read_to_string("sample_data/small_test_input.md").unwrap();
         let generator = Markdown2Html::new(input);
+        let res = generator.generate_html();
+        println!("{}", res);
     }
 }
