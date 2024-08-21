@@ -273,50 +273,88 @@ fn process_callout(markdown_unit: ParseUnit, output: &mut String) {
 fn process_inline_formatting(s: impl Into<String>) -> String {
     let mut res = s.into();
 
-    // bold
-    {
-        let indicies = res.match_indices("**").map(|x| x.0).collect::<Vec<_>>();
+    let mut f =
+        |markdown_pattern: &str, open_tag: &str, close_tag: &str, check_on_identifiers: bool| {
+            let indices = res.match_indices(markdown_pattern).map(|x| x.0);
 
-        let mut offset_accum: usize = 0;
-        for chunk in indicies.chunks_exact(2) {
-            res.replace_range(chunk[0] + offset_accum..chunk[0] + offset_accum + 2, "<b>");
-            offset_accum += 1;
-            res.replace_range(chunk[1] + offset_accum..chunk[1] + offset_accum + 2, "</b>");
-            offset_accum += 2;
-        }
-    }
+            let indices = if check_on_identifiers {
+                let mut head = false;
+                let mut head_failed = false;
+                let char_indices = res.char_indices().map(|x| x.0).collect::<Vec<_>>();
 
-    // italics
-    {
-        let indicies = res.match_indices("*").map(|x| x.0).collect::<Vec<_>>();
+                indices
+                    .filter(|x| {
+                        head = !head;
 
-        let mut offset_accum: usize = 0;
-        for chunk in indicies.chunks_exact(2) {
-            res.replace_range(chunk[0] + offset_accum..chunk[0] + offset_accum + 1, "<i>");
-            offset_accum += 2;
-            res.replace_range(chunk[1] + offset_accum..chunk[1] + offset_accum + 1, "</i>");
-            offset_accum += 3;
-        }
-    }
+                        if !head && head_failed {
+                            head_failed = false;
+                            return false;
+                        }
 
-    // code
-    {
-        let indicies = res.match_indices("`").map(|x| x.0).collect::<Vec<_>>();
+                        let pattern_position =
+                            char_indices.iter().position(|val| val == x).unwrap();
 
-        let mut offset_accum: usize = 0;
-        for chunk in indicies.chunks_exact(2) {
-            res.replace_range(
-                chunk[0] + offset_accum..chunk[0] + offset_accum + 1,
-                "<code>",
-            );
-            offset_accum += 5;
-            res.replace_range(
-                chunk[1] + offset_accum..chunk[1] + offset_accum + 1,
-                "</code>",
-            );
-            offset_accum += 6;
-        }
-    }
+                        let determine_index = if head {
+                            if pattern_position == 0 {
+                                None
+                            } else {
+                                char_indices.get(pattern_position - 1)
+                            }
+                        } else {
+                            char_indices.get(pattern_position + markdown_pattern.len())
+                        };
+
+                        if determine_index.is_none() {
+                            return true;
+                        }
+
+                        let determine_index = determine_index.unwrap();
+                        let determine_char_index = char_indices
+                            .iter()
+                            .position(|val| val == determine_index)
+                            .unwrap();
+
+                        let pass = !res
+                            .chars()
+                            .nth(determine_char_index)
+                            .unwrap()
+                            .is_alphanumeric();
+
+                        if head && !pass {
+                            head_failed = true
+                        }
+
+                        pass
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                indices.collect::<Vec<_>>()
+            };
+
+            let mut offset_accum: usize = 0;
+
+            for chunk in indices.chunks_exact(2) {
+                res.replace_range(
+                    chunk[0] + offset_accum..chunk[0] + offset_accum + markdown_pattern.len(),
+                    open_tag,
+                );
+                offset_accum += open_tag.len() - markdown_pattern.len();
+                res.replace_range(
+                    chunk[1] + offset_accum..chunk[1] + offset_accum + markdown_pattern.len(),
+                    close_tag,
+                );
+                offset_accum += close_tag.len() - markdown_pattern.len();
+            }
+        };
+
+    f("***", "<b><i>", "</i></b>", false);
+    f("___", "<b><i>", "</i></b>", true);
+    f("**", "<b>", "</b>", false);
+    f("__", "<b>", "</b>", true);
+    f("*", "<i>", "</i>", false);
+    f("_", "<i>", "</i>", true);
+    f("`", "<code>", "</code>", false);
+    f("~~", "<s>", "</s>", false);
 
     res
 }

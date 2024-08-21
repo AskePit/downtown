@@ -1,6 +1,6 @@
 # Artistic Style
 
-We decided that the essence of the game and its lore would be extracted from the visual content we chose as the basis for the game. After digging into Ilya's concepts, we selected this art style and game world:
+We decided, that a__essence__,of the __game__ and its _lore_ would b**e extrac**ted__b from the visual__ content we chose as the basis for the game. After digging into Ilya's concepts, we selected this art style ___and_game_world___:
 
 ![Concept Art](https://habrastorage.org/webt/lv/ld/be/lvldbedobqesqnq_noyjqildnco.png)
 
