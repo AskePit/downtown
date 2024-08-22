@@ -10,7 +10,7 @@ pub struct Markdown2Html {
 
 type Level = u8;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum UnitType {
     Header(Level),
     Text,
@@ -64,7 +64,7 @@ impl Markdown2Html {
 
         let mut block_start: usize = 0;
 
-        for (i, block) in input.iter().enumerate() {
+        'outer: for (i, block) in input.iter().enumerate() {
             if multiline_state {
                 let state_type = context.unit_types.last().unwrap();
                 match state_type {
@@ -117,56 +117,47 @@ impl Markdown2Html {
                 }
             }
 
-            if block.starts_with("# ") {
-                context.unit_types.push(UnitType::Header(1));
-                context.parse_units.push(Arc::from(&input[i..i + 1]));
-            } else if block.starts_with("## ") {
-                context.unit_types.push(UnitType::Header(2));
-                context.parse_units.push(Arc::from(&input[i..i + 1]));
-            } else if block.starts_with("### ") {
-                context.unit_types.push(UnitType::Header(3));
-                context.parse_units.push(Arc::from(&input[i..i + 1]));
-            } else if block.starts_with("#### ") {
-                context.unit_types.push(UnitType::Header(4));
-                context.parse_units.push(Arc::from(&input[i..i + 1]));
-            } else if block.starts_with("![") {
-                context.unit_types.push(UnitType::Image);
-                context.parse_units.push(Arc::from(&input[i..i + 1]));
-            } else if block.starts_with("- ") {
-                context.unit_types.push(UnitType::List);
-                multiline_state = true;
-                multiline_counter = 1;
-                block_start = i;
-            } else if block.starts_with("$$") {
-                context.unit_types.push(UnitType::Latex);
-                multiline_state = true;
-                multiline_counter = 1;
-                block_start = i;
-            } else if block.starts_with("```") {
-                context.unit_types.push(UnitType::Code);
-                multiline_state = true;
-                multiline_counter = 1;
-                block_start = i;
-            } else if block.starts_with(">") {
-                context.unit_types.push(UnitType::Callout);
-                multiline_state = true;
-                multiline_counter = 1;
-                block_start = i;
-            } else {
+            for (pattern, unit_type) in [
+                ("- ", UnitType::List),
+                ("$$", UnitType::Latex),
+                ("```", UnitType::Code),
+                (">", UnitType::Callout),
+            ] {
+                if block.starts_with(pattern) {
+                    context.unit_types.push(unit_type);
+                    multiline_state = true;
+                    multiline_counter = 1;
+                    block_start = i;
+                    continue 'outer;
+                }
+            }
+
+            for (pattern, unit_type) in [
+                ("# ", UnitType::Header(1)),
+                ("## ", UnitType::Header(2)),
+                ("### ", UnitType::Header(3)),
+                ("#### ", UnitType::Header(4)),
+                ("![", UnitType::Image),
+            ] {
+                if block.starts_with(pattern) {
+                    context.unit_types.push(unit_type);
+                    context.parse_units.push(Arc::from(&input[i..i + 1]));
+                    continue 'outer;
+                }
+            }
+
+            {
                 context.unit_types.push(UnitType::Text);
                 context.parse_units.push(Arc::from(&input[i..i + 1]));
             }
         }
 
         if multiline_state {
-            let state_type = context.unit_types.last().unwrap();
-            match state_type {
-                UnitType::List | UnitType::Callout => {
-                    context.parse_units.push(Arc::from(
-                        &input[block_start..block_start + multiline_counter],
-                    ));
-                }
-                _ => {}
+            let state_type = *context.unit_types.last().unwrap();
+            if state_type == UnitType::List || state_type == UnitType::Callout {
+                context.parse_units.push(Arc::from(
+                    &input[block_start..block_start + multiline_counter],
+                ));
             }
         }
 
@@ -273,90 +264,94 @@ fn process_callout(markdown_unit: ParseUnit, output: &mut String) {
 fn process_inline_formatting(s: impl Into<String>) -> String {
     let mut res = s.into();
 
-    let mut f =
-        |markdown_pattern: &str, open_tag: &str, close_tag: &str, check_on_identifiers: bool| {
-            let indices = res.match_indices(markdown_pattern).map(|x| x.0);
-
-            let indices = if check_on_identifiers {
-                let mut head = false;
-                let mut head_failed = false;
-                let char_indices = res.char_indices().map(|x| x.0).collect::<Vec<_>>();
-
-                indices
-                    .filter(|x| {
-                        head = !head;
-
-                        if !head && head_failed {
-                            head_failed = false;
-                            return false;
-                        }
-
-                        let pattern_position =
-                            char_indices.iter().position(|val| val == x).unwrap();
-
-                        let determine_index = if head {
-                            if pattern_position == 0 {
-                                None
-                            } else {
-                                char_indices.get(pattern_position - 1)
-                            }
-                        } else {
-                            char_indices.get(pattern_position + markdown_pattern.len())
-                        };
-
-                        if determine_index.is_none() {
-                            return true;
-                        }
-
-                        let determine_index = determine_index.unwrap();
-                        let determine_char_index = char_indices
-                            .iter()
-                            .position(|val| val == determine_index)
-                            .unwrap();
-
-                        let pass = !res
-                            .chars()
-                            .nth(determine_char_index)
-                            .unwrap()
-                            .is_alphanumeric();
-
-                        if head && !pass {
-                            head_failed = true
-                        }
-
-                        pass
-                    })
-                    .collect::<Vec<_>>()
-            } else {
-                indices.collect::<Vec<_>>()
-            };
-
-            let mut offset_accum: usize = 0;
-
-            for chunk in indices.chunks_exact(2) {
-                res.replace_range(
-                    chunk[0] + offset_accum..chunk[0] + offset_accum + markdown_pattern.len(),
-                    open_tag,
-                );
-                offset_accum += open_tag.len() - markdown_pattern.len();
-                res.replace_range(
-                    chunk[1] + offset_accum..chunk[1] + offset_accum + markdown_pattern.len(),
-                    close_tag,
-                );
-                offset_accum += close_tag.len() - markdown_pattern.len();
-            }
-        };
-
-    f("***", "<b><i>", "</i></b>", false);
-    f("___", "<b><i>", "</i></b>", true);
-    f("**", "<b>", "</b>", false);
-    f("__", "<b>", "</b>", true);
-    f("*", "<i>", "</i>", false);
-    f("_", "<i>", "</i>", true);
-    f("`", "<code>", "</code>", false);
-    f("~~", "<s>", "</s>", false);
+    process_symmetric_inline_pattern("***", "<b><i>", "</i></b>", false, &mut res);
+    process_symmetric_inline_pattern("___", "<b><i>", "</i></b>", true, &mut res);
+    process_symmetric_inline_pattern("**", "<b>", "</b>", false, &mut res);
+    process_symmetric_inline_pattern("__", "<b>", "</b>", true, &mut res);
+    process_symmetric_inline_pattern("*", "<i>", "</i>", false, &mut res);
+    process_symmetric_inline_pattern("_", "<i>", "</i>", true, &mut res);
+    process_symmetric_inline_pattern("`", "<code>", "</code>", false, &mut res);
+    process_symmetric_inline_pattern("~~", "<s>", "</s>", false, &mut res);
 
     res
+}
+
+fn process_symmetric_inline_pattern(
+    markdown_pattern: &str,
+    open_tag: &str,
+    close_tag: &str,
+    check_on_identifiers: bool,
+    output: &mut String,
+) {
+    let indices = output.match_indices(markdown_pattern).map(|x| x.0);
+
+    let indices = if check_on_identifiers {
+        let mut head = false;
+        let mut head_failed = false;
+        let char_indices = output.char_indices().map(|x| x.0).collect::<Vec<_>>();
+
+        indices
+            .filter(|x| {
+                head = !head;
+
+                if !head && head_failed {
+                    head_failed = false;
+                    return false;
+                }
+
+                let pattern_position = char_indices.iter().position(|val| val == x).unwrap();
+
+                let determine_index = if head {
+                    if pattern_position == 0 {
+                        None
+                    } else {
+                        char_indices.get(pattern_position - 1)
+                    }
+                } else {
+                    char_indices.get(pattern_position + markdown_pattern.len())
+                };
+
+                if determine_index.is_none() {
+                    return true;
+                }
+
+                let determine_index = determine_index.unwrap();
+                let determine_char_index = char_indices
+                    .iter()
+                    .position(|val| val == determine_index)
+                    .unwrap();
+
+                let pass = !output
+                    .chars()
+                    .nth(determine_char_index)
+                    .unwrap()
+                    .is_alphanumeric();
+
+                if head && !pass {
+                    head_failed = true
+                }
+
+                pass
+            })
+            .collect::<Vec<_>>()
+    } else {
+        indices.collect::<Vec<_>>()
+    };
+
+    let mut offset_accum: usize = 0;
+
+    for chunk in indices.chunks_exact(2) {
+        output.replace_range(
+            chunk[0] + offset_accum..chunk[0] + offset_accum + markdown_pattern.len(),
+            open_tag,
+        );
+        offset_accum += open_tag.len() - markdown_pattern.len();
+        output.replace_range(
+            chunk[1] + offset_accum..chunk[1] + offset_accum + markdown_pattern.len(),
+            close_tag,
+        );
+        offset_accum += close_tag.len() - markdown_pattern.len();
+    }
 }
 
 #[cfg(test)]
