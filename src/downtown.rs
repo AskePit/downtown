@@ -21,6 +21,7 @@ enum UnitType {
     Latex,
     Code,
     Blockquote,
+    HorizontalLine,
 }
 
 struct ParseContext {
@@ -119,6 +120,7 @@ impl Markdown2Html {
                 }
             }
 
+            // multiline patterns
             for (pattern, unit_type) in [
                 ("- ", UnitType::List),
                 ("$$", UnitType::Latex),
@@ -134,12 +136,14 @@ impl Markdown2Html {
                 }
             }
 
+            // one-line patterns
             for (pattern, unit_type) in [
                 ("# ", UnitType::Header(1)),
                 ("## ", UnitType::Header(2)),
                 ("### ", UnitType::Header(3)),
                 ("#### ", UnitType::Header(4)),
                 ("![", UnitType::Image),
+                ("---", UnitType::HorizontalLine),
             ] {
                 if block.starts_with(pattern) {
                     context.unit_types.push(unit_type);
@@ -180,6 +184,7 @@ fn process_unit(markdown_unit: ParseUnit, unit_type: UnitType, output: &mut Stri
         UnitType::Latex => process_latex,
         UnitType::Code => process_code,
         UnitType::Blockquote => process_blockquote,
+        UnitType::HorizontalLine => process_horizontal_line,
         _ => process_text,
     };
 
@@ -261,6 +266,11 @@ fn process_blockquote(markdown_unit: ParseUnit, output: &mut String) {
         *output += format!("\t<p>{}</p>\n", text[1..].trim()).as_str();
     }
     *output += "</div>";
+}
+
+fn process_horizontal_line(markdown_unit: ParseUnit, output: &mut String) {
+    assert_eq!(markdown_unit.len(), 1);
+    *output = "<hr>".to_owned();
 }
 
 fn process_inline_formatting(s: impl Into<String>) -> String {

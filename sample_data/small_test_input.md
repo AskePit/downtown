@@ -2,6 +2,8 @@
 
 We decided, that a__essence__,of the __game__ and its _lore_ would b**e extrac**ted__b from the visual__ content we chose as the basis for the game. After digging into Ilya's concepts, we selected this art style ___and_game_world___:
 
+---
+
 ![Concept Art](https://habrastorage.org/webt/lv/ld/be/lvldbedobqesqnq_noyjqildnco.png)
 
 More about the concept can be found in [this retrospective article](https://www.ilyaboyko.com/work/rift-in-the-empire-2) by Ilya.
