@@ -1,3 +1,4 @@
+use std::cmp::PartialEq;
 use std::sync::Arc;
 
 type Block = Arc<str>;
@@ -272,6 +273,7 @@ fn process_inline_formatting(s: impl Into<String>) -> String {
     process_symmetric_inline_pattern("_", "<i>", "</i>", true, &mut res);
     process_symmetric_inline_pattern("`", "<code>", "</code>", false, &mut res);
     process_symmetric_inline_pattern("~~", "<s>", "</s>", false, &mut res);
+    process_links(&mut res);
 
     res
 }
@@ -281,14 +283,14 @@ fn process_symmetric_inline_pattern(
     open_tag: &str,
     close_tag: &str,
     check_on_identifiers: bool,
-    output: &mut String,
+    text: &mut String,
 ) {
-    let indices = output.match_indices(markdown_pattern).map(|x| x.0);
+    let indices = text.match_indices(markdown_pattern).map(|x| x.0);
 
     let indices = if check_on_identifiers {
         let mut head = false;
         let mut head_failed = false;
-        let char_indices = output.char_indices().map(|x| x.0).collect::<Vec<_>>();
+        let char_indices = text.char_indices().map(|x| x.0).collect::<Vec<_>>();
 
         indices
             .filter(|x| {
@@ -321,7 +323,7 @@ fn process_symmetric_inline_pattern(
                     .position(|val| val == determine_index)
                     .unwrap();
 
-                let pass = !output
+                let pass = !text
                     .chars()
                     .nth(determine_char_index)
                     .unwrap()
@@ -341,16 +343,67 @@ fn process_symmetric_inline_pattern(
     let mut offset_accum: usize = 0;
 
     for chunk in indices.chunks_exact(2) {
-        output.replace_range(
+        text.replace_range(
             chunk[0] + offset_accum..chunk[0] + offset_accum + markdown_pattern.len(),
             open_tag,
         );
         offset_accum += open_tag.len() - markdown_pattern.len();
-        output.replace_range(
+        text.replace_range(
             chunk[1] + offset_accum..chunk[1] + offset_accum + markdown_pattern.len(),
             close_tag,
         );
         offset_accum += close_tag.len() - markdown_pattern.len();
+    }
+}
+
+fn process_links(text: &mut String) {
+    #[derive(PartialEq)]
+    enum State {
+        None,
+        CaptionStart(usize),
+        CaptionEnd(usize),
+        LinkStart(usize, usize),
+    }
+
+    let mut state = State::None;
+
+    for (i, ch) in text.chars().enumerate() {
+        match state {
+            State::None => {
+                if ch == '[' {
+                    state = State::CaptionStart(i);
+                }
+            }
+            State::CaptionStart(start) => {
+                if ch == ']' {
+                    state = State::CaptionEnd(start);
+                }
+            }
+            State::CaptionEnd(start) => {
+                if ch == '(' {
+                    state = State::LinkStart(start, i);
+                } else {
+                    state = State::None;
+                    if ch == '[' {
+                        state = State::CaptionStart(i);
+                    }
+                }
+            }
+            State::LinkStart(caption_start, link_start) => {
+                if ch == ')' {
+                    let link_end = i;
+
+                    let char_indices = text.char_indices().map(|x|x.0).collect::<Vec<_>>();
+
+                    let caption = &text[char_indices[caption_start+1]..char_indices[link_start-1]];
+                    let link = &text[char_indices[link_start+1]..char_indices[link_end]];
+
+                    println!("{caption} {link}");
+
+                    state = State::None;
+                }
+            }
+        }
     }
 }
 
