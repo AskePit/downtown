@@ -22,6 +22,7 @@ enum UnitType {
     Code,
     Blockquote,
     HorizontalLine,
+    LocalLink,
 }
 
 struct ParseContext {
@@ -142,6 +143,7 @@ impl Markdown2Html {
                 ("## ", UnitType::Header(2)),
                 ("### ", UnitType::Header(3)),
                 ("#### ", UnitType::Header(4)),
+                ("![[", UnitType::LocalLink),
                 ("![", UnitType::Image),
                 ("---", UnitType::HorizontalLine),
             ] {
@@ -181,6 +183,7 @@ fn process_unit(markdown_unit: ParseUnit, unit_type: UnitType, output: &mut Stri
         UnitType::Text => process_text,
         UnitType::List => process_list,
         UnitType::Image => process_image,
+        UnitType::LocalLink => process_local_link,
         UnitType::Latex => process_latex,
         UnitType::Code => process_code,
         UnitType::Blockquote => process_blockquote,
@@ -237,6 +240,16 @@ fn process_image(markdown_unit: ParseUnit, output: &mut String) {
     </figure>
 </div>"#
     );
+}
+
+fn process_local_link(markdown_unit: ParseUnit, output: &mut String) {
+    assert_eq!(markdown_unit.len(), 1);
+    let text = markdown_unit.first().unwrap().trim();
+    insert_error_element(text, output);
+}
+
+fn insert_error_element(error_text: &str, output: &mut String) {
+    *output = format!(r#"<div class="parse-error">{error_text}</div>"#);
 }
 
 fn process_latex(markdown_unit: ParseUnit, output: &mut String) {
@@ -414,7 +427,7 @@ mod tests {
 
     #[test]
     fn analyze_input() {
-        let input = std::fs::read_to_string("sample_data/small_test_input.md").unwrap();
+        let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
         let generator = Markdown2Html::new(input);
         let res = generator.generate_html();
         println!("{}", res);

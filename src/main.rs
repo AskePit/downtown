@@ -14,8 +14,7 @@ fn get_path_by_tag(short_tag: &str, long_tag: &str) -> Option<PathBuf> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let input_path =
-        get_path_by_tag("-i", "--input");
+    let input_path = get_path_by_tag("-i", "--input");
 
     if input_path.is_none() {
         return Err("input markdown file is not specified!")?;
