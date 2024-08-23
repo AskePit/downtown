@@ -1,6 +1,7 @@
 use std::cmp::PartialEq;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 type Block = Arc<str>;
 type BlocksSlice = Arc<[Block]>;
@@ -8,6 +9,7 @@ type ParseUnit = BlocksSlice;
 
 pub struct Markdown2Html {
     parse_context: ParseContext,
+    number_of_threads: u8,
 }
 
 type Level = u8;
@@ -40,10 +42,28 @@ impl Markdown2Html {
 
         let parse_context = Markdown2Html::analyze_input(&input);
 
-        Markdown2Html { parse_context }
+        Markdown2Html {
+            parse_context,
+            number_of_threads: 0,
+        }
+    }
+
+    pub fn set_number_of_threads(&mut self, number_of_threads: u8) {
+        self.number_of_threads = number_of_threads;
     }
 
     pub fn generate_html(&self) -> String {
+        if self.number_of_threads == 0 {
+            // default behaviour
+            self.generate_html_multi_threaded(self.number_of_threads)
+        } else if self.number_of_threads == 1 {
+            self.generate_html_single_threaded()
+        } else {
+            self.generate_html_multi_threaded(self.number_of_threads)
+        }
+    }
+
+    fn generate_html_single_threaded(&self) -> String {
         let mut output_vec = vec!["".to_owned(); self.parse_context.parse_units.len()];
 
         for i in 0..self.parse_context.parse_units.len() {
@@ -55,6 +75,54 @@ impl Markdown2Html {
         }
 
         output_vec.join("\n")
+    }
+
+    fn generate_html_multi_threaded(&self, number_of_threads: u8) -> String {
+        const DEFAULT_NUMBER_OF_THREADS: usize = 4;
+        let number_of_threads = if number_of_threads == 0 {
+            thread::available_parallelism()
+                .map(|x| x.get())
+                .unwrap_or(DEFAULT_NUMBER_OF_THREADS)
+        } else {
+            DEFAULT_NUMBER_OF_THREADS
+        };
+        // TODO: rewrite on chunks processing
+        let _chunk_size = self.parse_context.parse_units.len() / number_of_threads;
+
+        // Wrap each output element in Arc<Mutex<String>> for thread-safe mutability
+        let output_vec: Arc<Vec<Arc<Mutex<String>>>> = Arc::new(
+            (0..self.parse_context.parse_units.len())
+                .map(|_| Arc::new(Mutex::new(String::new())))
+                .collect(),
+        );
+
+        let mut handles = vec![];
+
+        for (i, item) in self.parse_context.parse_units.iter().enumerate() {
+            let item = Arc::clone(&item);
+            let unit_type = self.parse_context.unit_types[i];
+            let output = Arc::clone(&output_vec[i]);
+
+            let handle = thread::spawn(move || {
+                // SAFETY: We ensure that only this thread accesses this specific index
+                process_unit(item, unit_type, &mut output.lock().unwrap());
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all threads to finish
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let final_output: Vec<String> = Arc::try_unwrap(output_vec)
+            .unwrap()
+            .into_iter()
+            .map(|cell| Arc::try_unwrap(cell).unwrap().into_inner().unwrap().clone())
+            .collect();
+
+        final_output.join("\n")
     }
 
     fn analyze_input(input: &[Block]) -> ParseContext {

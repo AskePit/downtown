@@ -49,8 +49,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let output_path =
         get_path_by_tag("-o", "--output").unwrap_or_else(|| input_path.with_extension("html"));
 
+    let number_of_threads = get_number_by_tag("-j", "--threads").unwrap_or(0);
+
     let input = std::fs::read_to_string(input_path)?;
-    let parser = Markdown2Html::new(input);
+    let mut parser = Markdown2Html::new(input);
+    parser.set_number_of_threads(number_of_threads);
     let res = parser.generate_html();
 
     let mut f = fs::File::create(output_path)?;
