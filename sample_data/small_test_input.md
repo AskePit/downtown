@@ -44,7 +44,7 @@ $$
 
 
 
-There is a `high probability` that I will want to use `different metrics`, so now I have a universal function for this in my arsenal:
+_There_ is a `high probability` that I will want to use `different metrics`, so now I have a universal function for this in my arsenal:
 
 ```cpp
 double distance(Point a, Point b, SpaceMetric metric = SpaceMetric::Euqlid)

@@ -279,6 +279,11 @@ fn process_inline_formatting(s: impl Into<String>) -> String {
     res
 }
 
+fn byte_index_to_char_index(text: &str, byte_index: usize) -> usize {
+    // Count the number of characters up to the given byte index
+    text[..byte_index].chars().count()
+}
+
 fn process_symmetric_inline_pattern(
     markdown_pattern: &str,
     open_tag: &str,
@@ -286,73 +291,50 @@ fn process_symmetric_inline_pattern(
     check_on_identifiers: bool,
     text: &mut String,
 ) {
-    let indices = text.match_indices(markdown_pattern).map(|x| x.0);
+    let pattern_indices = text.match_indices(markdown_pattern).map(|x| x.0);
 
-    let indices = if check_on_identifiers {
+    let pattern_indices = if check_on_identifiers {
         let mut head = false;
-        let mut head_failed = false;
-        let char_indices = text.char_indices().map(|x| x.0).collect::<Vec<_>>();
 
-        indices
-            .filter(|x| {
+        pattern_indices
+            .filter(|&byte_index| {
                 head = !head;
 
-                if !head && head_failed {
-                    head_failed = false;
-                    return false;
-                }
+                let pattern_position = byte_index_to_char_index(&text, byte_index);
 
-                let pattern_position = char_indices.iter().position(|val| val == x).unwrap();
-
-                let determine_index = if head {
+                let determine_char_index = if head {
                     if pattern_position == 0 {
-                        None
-                    } else {
-                        char_indices.get(pattern_position - 1)
+                        return true;
                     }
+                    pattern_position - 1
                 } else {
-                    char_indices.get(pattern_position + markdown_pattern.len())
+                    pattern_position + markdown_pattern.len()
                 };
 
-                if determine_index.is_none() {
-                    return true;
-                }
+                let determine_char = text.chars().nth(determine_char_index).unwrap();
 
-                let determine_index = determine_index.unwrap();
-                let determine_char_index = char_indices
-                    .iter()
-                    .position(|val| val == determine_index)
-                    .unwrap();
+                let pass = !determine_char.is_alphanumeric() && determine_char != '_';
 
-                let pass = !text
-                    .chars()
-                    .nth(determine_char_index)
-                    .unwrap()
-                    .is_alphanumeric();
-
-                if head && !pass {
-                    head_failed = true
+                if !pass {
+                    head = !head;
                 }
 
                 pass
             })
             .collect::<Vec<_>>()
     } else {
-        indices.collect::<Vec<_>>()
+        pattern_indices.collect::<Vec<_>>()
     };
 
     let mut offset_accum: usize = 0;
 
-    for chunk in indices.chunks_exact(2) {
-        text.replace_range(
-            chunk[0] + offset_accum..chunk[0] + offset_accum + markdown_pattern.len(),
-            open_tag,
-        );
+    for chunk in pattern_indices.chunks_exact(2) {
+        let left_index = chunk[0] + offset_accum;
+        text.replace_range(left_index..left_index + markdown_pattern.len(), open_tag);
         offset_accum += open_tag.len() - markdown_pattern.len();
-        text.replace_range(
-            chunk[1] + offset_accum..chunk[1] + offset_accum + markdown_pattern.len(),
-            close_tag,
-        );
+
+        let right_index = chunk[1] + offset_accum;
+        text.replace_range(right_index..right_index + markdown_pattern.len(), close_tag);
         offset_accum += close_tag.len() - markdown_pattern.len();
     }
 }
