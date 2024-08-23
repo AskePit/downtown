@@ -1,4 +1,5 @@
 use std::cmp::PartialEq;
+use std::ops::Range;
 use std::sync::Arc;
 
 type Block = Arc<str>;
@@ -367,7 +368,9 @@ fn process_links(text: &mut String) {
 
     let mut state = State::None;
 
-    for (i, ch) in text.chars().enumerate() {
+    let mut to_replace: Vec<(Range<usize>, String)> = vec![];
+
+    for (i, ch) in text.char_indices() {
         match state {
             State::None => {
                 if ch == '[' {
@@ -393,17 +396,23 @@ fn process_links(text: &mut String) {
                 if ch == ')' {
                     let link_end = i;
 
-                    let char_indices = text.char_indices().map(|x|x.0).collect::<Vec<_>>();
+                    let caption = &text[caption_start + 1..link_start - 1];
+                    let link = &text[link_start + 1..link_end];
 
-                    let caption = &text[char_indices[caption_start+1]..char_indices[link_start-1]];
-                    let link = &text[char_indices[link_start+1]..char_indices[link_end]];
-
-                    println!("{caption} {link}");
-
+                    to_replace.push((
+                        caption_start..link_end + 1,
+                        format!("<a href=\"{link}\">{caption}</a>"),
+                    ));
                     state = State::None;
                 }
             }
         }
+    }
+
+    let mut offset_accum: usize = 0;
+    for (r, s) in to_replace {
+        text.replace_range(r.start + offset_accum..r.end + offset_accum, s.as_str());
+        offset_accum += s.len() - r.len()
     }
 }
 
