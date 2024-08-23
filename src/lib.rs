@@ -1,3 +1,6 @@
+mod code_highlighter;
+
+use crate::code_highlighter::highlight_code;
 use std::cmp::PartialEq;
 use std::ops::Range;
 use std::sync::Arc;
@@ -264,11 +267,11 @@ fn process_code(markdown_unit: ParseUnit, output: &mut String) {
         .unwrap()
         .trim_start_matches('`')
         .trim();
-    *output = format!(
-        "<pre><code class=\"language-{}\">{}</code></pre>",
-        lang,
-        markdown_unit[1..markdown_unit.len() - 1].join("\n")
-    );
+
+    let code = markdown_unit[1..markdown_unit.len() - 1].join("\n");
+    let (lang, code) = highlight_code(lang, code.as_str());
+
+    *output = format!("<pre><code class=\"language-{lang}\">{code}</code></pre>");
 }
 
 fn process_blockquote(markdown_unit: ParseUnit, output: &mut String) {
