@@ -20,7 +20,7 @@ enum UnitType {
     Image,
     Latex,
     Code,
-    Callout,
+    Blockquote,
 }
 
 struct ParseContext {
@@ -81,7 +81,7 @@ impl Markdown2Html {
                             multiline_state = false;
                         }
                     }
-                    UnitType::Callout => {
+                    UnitType::Blockquote => {
                         if block.starts_with(">") {
                             multiline_counter += 1;
                             continue;
@@ -123,7 +123,7 @@ impl Markdown2Html {
                 ("- ", UnitType::List),
                 ("$$", UnitType::Latex),
                 ("```", UnitType::Code),
-                (">", UnitType::Callout),
+                (">", UnitType::Blockquote),
             ] {
                 if block.starts_with(pattern) {
                     context.unit_types.push(unit_type);
@@ -156,7 +156,7 @@ impl Markdown2Html {
 
         if multiline_state {
             let state_type = *context.unit_types.last().unwrap();
-            if state_type == UnitType::List || state_type == UnitType::Callout {
+            if state_type == UnitType::List || state_type == UnitType::Blockquote {
                 context.parse_units.push(Arc::from(
                     &input[block_start..block_start + multiline_counter],
                 ));
@@ -179,7 +179,7 @@ fn process_unit(markdown_unit: ParseUnit, unit_type: UnitType, output: &mut Stri
         UnitType::Image => process_image,
         UnitType::Latex => process_latex,
         UnitType::Code => process_code,
-        UnitType::Callout => process_callout,
+        UnitType::Blockquote => process_blockquote,
         _ => process_text,
     };
 
@@ -253,7 +253,7 @@ fn process_code(markdown_unit: ParseUnit, output: &mut String) {
     );
 }
 
-fn process_callout(markdown_unit: ParseUnit, output: &mut String) {
+fn process_blockquote(markdown_unit: ParseUnit, output: &mut String) {
     *output = "<div class=\"callout\">\n".to_owned();
     for el in markdown_unit.iter() {
         let text = el.trim().trim_start_matches('-').trim();
