@@ -423,13 +423,33 @@ fn process_links(text: &mut String) {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
     use super::*;
 
     #[test]
     fn analyze_input() {
         let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
         let generator = Markdown2Html::new(input);
-        let res = generator.generate_html();
-        println!("{}", res);
+        let _res = generator.generate_html();
+        //println!("{}", res);
+    }
+
+    #[test]
+    fn benchmark() {
+        let mut total_time = std::time::Duration::default();
+        const TIMES: usize = 400;
+
+        for _ in 0..TIMES {
+            let timer_start = SystemTime::now();
+
+            let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
+            let generator = Markdown2Html::new(input);
+            let _res = generator.generate_html();
+
+            total_time += SystemTime::now().duration_since(timer_start).unwrap();
+        }
+
+        let ms = total_time.as_millis();
+        println!("  {} ms", ms);
     }
 }
