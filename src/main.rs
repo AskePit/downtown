@@ -29,8 +29,15 @@ fn get_number_by_tag(short_tag: &str, long_tag: &str) -> Option<u8> {
 
 fn main() -> Result<(), Box<dyn Error>> {
     if has_tag("-h", "--help") {
-        // TODO: help print
-        println!("Heeeeelp!");
+        println!(
+            r#"
+downtown.exe -i <input> [-j <number>] [-o <output>]
+
+-i, --input      Input *.md file
+-o, --output     Output *.html file. If not specified, a file with same name as <input> file will be
+                 created but with .html extension
+-j, --threads    Number of threads to run. Default is 4"#
+        );
         return Ok(());
     }
 
