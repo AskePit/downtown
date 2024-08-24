@@ -3,7 +3,8 @@ mod code_highlighter;
 use crate::code_highlighter::highlight_code;
 use std::cmp::PartialEq;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 type Block = Arc<str>;
 type BlocksSlice = Arc<[Block]>;
@@ -11,6 +12,7 @@ type ParseUnit = BlocksSlice;
 
 pub struct Markdown2Html {
     parse_context: ParseContext,
+    number_of_threads: u8,
 }
 
 type Level = u8;
@@ -43,21 +45,117 @@ impl Markdown2Html {
 
         let parse_context = Markdown2Html::analyze_input(&input);
 
-        Markdown2Html { parse_context }
+        Markdown2Html {
+            parse_context,
+            number_of_threads: 0,
+        }
+    }
+
+    pub fn set_number_of_threads(&mut self, number_of_threads: u8) {
+        self.number_of_threads = number_of_threads;
     }
 
     pub fn generate_html(&self) -> String {
-        let mut output_vec = vec!["".to_owned(); self.parse_context.parse_units.len()];
+        if self.number_of_threads == 0 {
+            // default behaviour
+            self.generate_html_multi_threaded(self.number_of_threads)
+        } else if self.number_of_threads == 1 {
+            self.generate_html_single_threaded()
+        } else {
+            self.generate_html_multi_threaded(self.number_of_threads)
+        }
+    }
 
-        for i in 0..self.parse_context.parse_units.len() {
-            let parse_unit = self.parse_context.parse_units[i].clone();
-            let unit_type = self.parse_context.unit_types[i];
+    fn generate_html_single_threaded(&self) -> String {
+        let parse_units = &self.parse_context.parse_units;
+        let unit_types = &self.parse_context.unit_types;
+        let units_size = parse_units.len();
+
+        let mut output_vec = vec!["".to_owned(); units_size];
+
+        for i in 0..units_size {
+            let parse_unit = parse_units[i].clone();
+            let unit_type = unit_types[i];
             let output = &mut output_vec[i];
 
             process_unit(parse_unit, unit_type, output);
         }
 
         output_vec.join("\n")
+    }
+
+    fn generate_html_multi_threaded(&self, number_of_threads: u8) -> String {
+        const DEFAULT_NUMBER_OF_THREADS: usize = 4;
+
+        let number_of_threads = if number_of_threads == 0 {
+            DEFAULT_NUMBER_OF_THREADS
+        } else {
+            number_of_threads as usize
+        };
+
+        let parse_units = &self.parse_context.parse_units;
+        let unit_types = &self.parse_context.unit_types;
+        let units_size = parse_units.len();
+
+        let chunk_size = (units_size + number_of_threads - 1) / number_of_threads; // Calculate chunk size
+
+        // Wrap each output element in Arc<Mutex<String>> for thread-safe mutability
+        let output_vec: Arc<Vec<Arc<Mutex<String>>>> = Arc::new(
+            (0..units_size)
+                .map(|_| Arc::new(Mutex::new(String::new())))
+                .collect(),
+        );
+
+        let mut handles = vec![];
+
+        for thread_index in 0..number_of_threads {
+            let input_chunk = parse_units
+                .iter()
+                .skip(thread_index * chunk_size)
+                .take(chunk_size)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let unit_types_chunk = unit_types
+                .iter()
+                .skip(thread_index * chunk_size)
+                .take(chunk_size)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let output_chunk = output_vec
+                .iter()
+                .skip(thread_index * chunk_size)
+                .take(chunk_size)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let handle = thread::spawn(move || {
+                for (item, (unit_type, output)) in input_chunk
+                    .iter()
+                    .zip(unit_types_chunk.iter().zip(output_chunk))
+                {
+                    let mut output = output.lock().unwrap();
+
+                    process_unit(item.clone(), *unit_type, &mut output);
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all threads to finish
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let final_output: Vec<String> = Arc::try_unwrap(output_vec)
+            .unwrap()
+            .into_iter()
+            .map(|cell| Arc::try_unwrap(cell).unwrap().into_inner().unwrap().clone())
+            .collect();
+
+        final_output.join("\n")
     }
 
     fn analyze_input(input: &[Block]) -> ParseContext {
@@ -427,12 +525,32 @@ fn process_links(text: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::SystemTime;
 
     #[test]
     fn analyze_input() {
         let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
         let generator = Markdown2Html::new(input);
-        let res = generator.generate_html();
-        println!("{}", res);
+        let _res = generator.generate_html();
+        //println!("{}", _res);
+    }
+
+    #[test]
+    fn benchmark() {
+        let mut total_time = std::time::Duration::default();
+        const TIMES: usize = 5000;
+
+        for _ in 0..TIMES {
+            let timer_start = SystemTime::now();
+
+            let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
+            let generator = Markdown2Html::new(input);
+            let _res = generator.generate_html();
+
+            total_time += SystemTime::now().duration_since(timer_start).unwrap();
+        }
+
+        let ms = total_time.as_millis();
+        println!("  {} ms", ms);
     }
 }
