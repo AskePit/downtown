@@ -56,6 +56,12 @@ downtown.exe -i <input> [-j <number>] [-o <output>]
     let output_path =
         get_path_by_tag("-o", "--output").unwrap_or_else(|| input_path.with_extension("html"));
 
+    let output_path = if let None = output_path.extension() {
+        output_path.with_extension("html")
+    } else {
+        output_path
+    };
+
     let number_of_threads = get_number_by_tag("-j", "--threads").unwrap_or(0);
 
     let input = std::fs::read_to_string(input_path)?;
