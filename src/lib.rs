@@ -64,11 +64,15 @@ impl Markdown2Html {
     }
 
     fn generate_html_single_threaded(&self) -> String {
-        let mut output_vec = vec!["".to_owned(); self.parse_context.parse_units.len()];
+        let parse_units = &self.parse_context.parse_units;
+        let unit_types = &self.parse_context.unit_types;
+        let units_size = parse_units.len();
 
-        for i in 0..self.parse_context.parse_units.len() {
-            let parse_unit = self.parse_context.parse_units[i].clone();
-            let unit_type = self.parse_context.unit_types[i];
+        let mut output_vec = vec!["".to_owned(); units_size];
+
+        for i in 0..units_size {
+            let parse_unit = parse_units[i].clone();
+            let unit_type = unit_types[i];
             let output = &mut output_vec[i];
 
             process_unit(parse_unit, unit_type, output);
@@ -79,33 +83,59 @@ impl Markdown2Html {
 
     fn generate_html_multi_threaded(&self, number_of_threads: u8) -> String {
         const DEFAULT_NUMBER_OF_THREADS: usize = 4;
+
         let number_of_threads = if number_of_threads == 0 {
-            thread::available_parallelism()
-                .map(|x| x.get())
-                .unwrap_or(DEFAULT_NUMBER_OF_THREADS)
-        } else {
             DEFAULT_NUMBER_OF_THREADS
+        } else {
+            number_of_threads as usize
         };
-        // TODO: rewrite on chunks processing
-        let _chunk_size = self.parse_context.parse_units.len() / number_of_threads;
+
+        let parse_units = &self.parse_context.parse_units;
+        let unit_types = &self.parse_context.unit_types;
+        let units_size = parse_units.len();
+
+        let chunk_size = (units_size + number_of_threads - 1) / number_of_threads; // Calculate chunk size
 
         // Wrap each output element in Arc<Mutex<String>> for thread-safe mutability
         let output_vec: Arc<Vec<Arc<Mutex<String>>>> = Arc::new(
-            (0..self.parse_context.parse_units.len())
+            (0..units_size)
                 .map(|_| Arc::new(Mutex::new(String::new())))
                 .collect(),
         );
 
         let mut handles = vec![];
 
-        for (i, item) in self.parse_context.parse_units.iter().enumerate() {
-            let item = Arc::clone(&item);
-            let unit_type = self.parse_context.unit_types[i];
-            let output = Arc::clone(&output_vec[i]);
+        for thread_index in 0..number_of_threads {
+            let input_chunk = parse_units
+                .iter()
+                .skip(thread_index * chunk_size)
+                .take(chunk_size)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let unit_types_chunk = unit_types
+                .iter()
+                .skip(thread_index * chunk_size)
+                .take(chunk_size)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let output_chunk = output_vec
+                .iter()
+                .skip(thread_index * chunk_size)
+                .take(chunk_size)
+                .cloned()
+                .collect::<Vec<_>>();
 
             let handle = thread::spawn(move || {
-                // SAFETY: We ensure that only this thread accesses this specific index
-                process_unit(item, unit_type, &mut output.lock().unwrap());
+                for (item, (unit_type, output)) in input_chunk
+                    .iter()
+                    .zip(unit_types_chunk.iter().zip(output_chunk))
+                {
+                    let mut output = output.lock().unwrap();
+
+                    process_unit(item.clone(), *unit_type, &mut output);
+                }
             });
 
             handles.push(handle);
@@ -491,21 +521,21 @@ fn process_links(text: &mut String) {
 
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
     use super::*;
+    use std::time::SystemTime;
 
     #[test]
     fn analyze_input() {
         let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
         let generator = Markdown2Html::new(input);
         let _res = generator.generate_html();
-        //println!("{}", res);
+        //println!("{}", _res);
     }
 
     #[test]
     fn benchmark() {
         let mut total_time = std::time::Duration::default();
-        const TIMES: usize = 400;
+        const TIMES: usize = 5000;
 
         for _ in 0..TIMES {
             let timer_start = SystemTime::now();
