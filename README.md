@@ -1,6 +1,6 @@
 # downtown
 
-Markdown to HTML converter written in Rust. Made for askepit.github.io blog
+Markdown to HTML converter written in Rust. Made for [askepit.github.io](https://askepit.github.io/) blog
 
 ## Usage
 
