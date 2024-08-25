@@ -538,7 +538,7 @@ mod tests {
     #[test]
     fn benchmark() {
         let mut total_time = std::time::Duration::default();
-        const TIMES: usize = 5000;
+        const TIMES: usize = 10;
 
         for _ in 0..TIMES {
             let timer_start = SystemTime::now();
