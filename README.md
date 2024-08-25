@@ -46,6 +46,6 @@ The tool generates a html-file **without \<head\> and \<body\>**, but only conte
 
 ## How many threads should I use?
 
-If you do not specify `-j` option it will use 4 threads by default. Bear in mind that bigger amount of threads is not always better. Tests on my PC with `Processor	12th Gen Intel(R) Core(TM) i5-12600K, 3700 Mhz, 10 Core(s), 16 Logical Processor(s)` showed that sweet pot is located somewhere between 4-6 threads and using 16 on the other hand degrade speed back to almost a single-threaded scenario:
+If you do not specify `-j` option it will use 4 threads by default which is okay for the most cases. Bear in mind that bigger amount of threads is not always better. Tests on my PC with `Processor	12th Gen Intel(R) Core(TM) i5-12600K, 3700 Mhz, 10 Core(s), 16 Logical Processor(s)` showed that sweet pot is located somewhere between 4-6 threads and using 16 on the other hand degrade speed back to almost a single-threaded scenario:
 
 ![](https://habrastorage.org/webt/lu/rz/4z/lurz4z4aqxmrr9tn9ds-swnpxbw.png)
