@@ -334,7 +334,7 @@ fn process_image(markdown_unit: ParseUnit, output: &mut String) {
     let src = &text[text.find("](").unwrap() + 2..text.len() - 1];
 
     *output = format!(
-        r#"<div class="picture">
+        r#"<div class="image">
     <figure>
         <img src="{src}" alt="{caption}">
         <figcaption>{caption}</figcaption>
@@ -373,7 +373,7 @@ fn process_code(markdown_unit: ParseUnit, output: &mut String) {
 }
 
 fn process_blockquote(markdown_unit: ParseUnit, output: &mut String) {
-    *output = "<div class=\"callout\">\n".to_owned();
+    *output = "<div class=\"blockquote\">\n".to_owned();
     for el in markdown_unit.iter() {
         let text = el.trim().trim_start_matches('-').trim();
         let text = process_inline_formatting(text);
