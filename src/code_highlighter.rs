@@ -1,5 +1,63 @@
 use std::collections::HashSet;
 
+#[derive(PartialEq)]
+enum HighlightClass {
+    Keyword,
+    Literal,
+    Comment,
+    Call,
+}
+
+struct MultilineCommentDesc {
+    start: &'static str,
+    end: &'static str,
+}
+
+struct CommentsDesc {
+    oneline: Vec<&'static str>,
+    multiline: Vec<MultilineCommentDesc>,
+}
+
+impl Into<&str> for HighlightClass {
+    fn into(self) -> &'static str {
+        match self {
+            HighlightClass::Keyword => "<span class=\"code-keyword\">",
+            HighlightClass::Literal => "<span class=\"code-literal\">",
+            HighlightClass::Comment => "<span class=\"code-comment\">",
+            HighlightClass::Call => "<span class=\"code-call\">",
+        }
+    }
+}
+
+struct HighlightData {
+    highlight_class: HighlightClass,
+    start: usize,
+    end: usize,
+    dead: bool,
+}
+
+impl HighlightData {
+    fn new(highlight_class: HighlightClass, start: usize, end: usize) -> Self {
+        HighlightData {
+            highlight_class,
+            start,
+            end,
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for HighlightData {
+    fn default() -> Self {
+        HighlightData {
+            highlight_class: HighlightClass::Keyword,
+            start: 0,
+            end: 0,
+            dead: false,
+        }
+    }
+}
+
 fn cplusplus_keywords() -> HashSet<&'static str> {
     let keywords = [
         "alignas",
@@ -96,6 +154,22 @@ fn cplusplus_keywords() -> HashSet<&'static str> {
         "while",
         "xor",
         "xor_eq",
+
+        "define",      // Defines a macro
+        "undef",       // Undefines a macro
+        "include",     // Includes a file
+        "if",          // Starts a conditional directive
+        "ifdef",       // Checks if a macro is defined
+        "ifndef",      // Checks if a macro is not defined
+        "else",        // Provides an alternative for #if
+        "elif",        // Else-if condition for #if
+        "endif",       // Ends a conditional directive
+        "error",       // Generates a compile-time error
+        "pragma",      // Special compiler instructions
+        "line",        // Changes the current line number
+        "warning",     // Generates a compile-time warning
+        "region",      // Marks the start of a region (non-standard)
+        "endregion",   // Marks the end of a region (non-standard)
     ];
     HashSet::from(keywords)
 }
@@ -187,7 +261,14 @@ pub fn highlight_code(lang: &str, text: &str) -> (Lang, Code) {
         corrected_lang = "python".to_owned();
     }
 
-    let keywords = match corrected_lang.as_str() {
+    let indices = get_highlight_indices(&corrected_lang, &result);
+    apply_highlighting(indices, &mut result);
+
+    (corrected_lang, result)
+}
+
+fn get_highlight_indices(lang: &String, text: &String) -> Vec<HighlightData> {
+    let keywords = match lang.as_str() {
         "cpp" | "c" => cplusplus_keywords(),
         "javascript" => javascript_keywords(),
         "python" => python_keywords(),
@@ -195,16 +276,151 @@ pub fn highlight_code(lang: &str, text: &str) -> (Lang, Code) {
         _ => all_keywords(),
     };
 
-    highlight_keywords(&keywords, &mut result);
+    let comments_desc: CommentsDesc = match lang.as_str() {
+        "python" => CommentsDesc {
+            oneline: vec!["#"],
+            multiline: vec![MultilineCommentDesc {
+                start: "'''",
+                end: "'''",
+            }],
+        },
+        "cpp" | "c" | "javascript" | "rust" | _ => CommentsDesc {
+            oneline: vec!["//"],
+            multiline: vec![MultilineCommentDesc {
+                start: "/*",
+                end: "*/",
+            }],
+        },
+    };
 
-    (corrected_lang, result)
+    parse_code(text, keywords, comments_desc)
 }
 
-fn highlight_keywords(keywords: &HashSet<&str>, text: &mut String) {
-    let all_keywords_indices = keywords
-        .iter()
-        .flat_map(|&keyword| text.match_indices(keyword))
+fn parse_code(
+    code: &String,
+    keywords: HashSet<&str>,
+    comments_desc: CommentsDesc,
+) -> Vec<HighlightData> {
+    let mut highlights = Vec::new();
+    let mut i = 0;
+
+    while i < code.len() {
+        let remainder = &code[i..];
+
+        // Check for one-line comments
+        if let Some(_) = comments_desc
+            .oneline
+            .iter()
+            .find_map(|&marker| remainder.strip_prefix(marker))
+        {
+            if let Some(end) = remainder.find('\n') {
+                highlights.push(HighlightData::new(HighlightClass::Comment, i, i + end));
+                i += end;
+            } else {
+                highlights.push(HighlightData::new(HighlightClass::Comment, i, code.len()));
+                break;
+            }
+        }
+        // Check for multiline comments
+        else if let Some(end_marker) = comments_desc
+            .multiline
+            .iter()
+            .find_map(|desc| remainder.strip_prefix(desc.start).map(|_| desc.end))
+        {
+            if let Some(end) = remainder.find(end_marker) {
+                highlights.push(HighlightData::new(
+                    HighlightClass::Comment,
+                    i,
+                    i + end + end_marker.len(),
+                ));
+                i += end + end_marker.len();
+            } else {
+                highlights.push(HighlightData::new(HighlightClass::Comment, i, code.len()));
+                break;
+            }
+        }
+        // Check for literals (strings, chars, numbers)
+        else if remainder.starts_with('"') {
+            if let Some(end) = remainder[1..].find('"') {
+                highlights.push(HighlightData::new(
+                    HighlightClass::Literal,
+                    i,
+                    i + end + 2, // Account for the closing quote
+                ));
+                i += end + 2;
+            } else {
+                highlights.push(HighlightData::new(HighlightClass::Literal, i, code.len()));
+                break;
+            }
+        } else if remainder.starts_with('\'')
+            && remainder.len() > 2
+            && remainder[2..].starts_with('\'')
+        {
+            // Character literals
+            highlights.push(HighlightData::new(HighlightClass::Literal, i, i + 3));
+            i += 3;
+        } else if remainder.starts_with(|c: char| c.is_ascii_digit()) {
+            // Numbers (simple detection of integers and floats)
+            let mut end = 0;
+            while end < remainder.len()
+                && remainder[end..].starts_with(|c: char| c.is_ascii_digit() || c == '.')
+            {
+                end += 1;
+            }
+            highlights.push(HighlightData::new(HighlightClass::Literal, i, i + end));
+            i += end;
+        }
+        // Check for keywords
+        else if remainder.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+            let mut end = 0;
+            while end < remainder.len()
+                && remainder[end..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
+            {
+                end += 1;
+            }
+            let word = &remainder[..end];
+            if keywords.contains(word) {
+                highlights.push(HighlightData::new(HighlightClass::Keyword, i, i + end));
+            } else if remainder[end..].starts_with('(') {
+                // Function call
+                highlights.push(HighlightData::new(HighlightClass::Call, i, i + end));
+            }
+            i += end;
+        } else {
+            // Advance character by character to avoid breaking UTF-8 sequences
+            let next_char = remainder.chars().next().unwrap();
+            i += next_char.len_utf8();
+        }
+    }
+
+    for i in 1..highlights.len() {
+        let (left, right) = highlights.split_at_mut(i);
+        let left = &mut left[0];
+        let right = &mut right[0];
+
+        if left.highlight_class == right.highlight_class && left.end + 1 == right.start {
+            left.end = right.end;
+            right.dead = true;
+        }
+    }
+
+    let highlights = highlights
+        .into_iter()
+        .filter(|x| !x.dead)
         .collect::<Vec<_>>();
 
-    println!("{:?}", all_keywords_indices);
+    highlights
+}
+
+fn apply_highlighting(indices: Vec<HighlightData>, text: &mut String) {
+    let mut offset_accum: usize = 0;
+    for data in indices {
+        let start_tag = data.highlight_class.into();
+        const END_TAG: &'static str = "</span>";
+
+        text.insert_str(data.start + offset_accum, start_tag);
+        offset_accum += start_tag.len();
+        text.insert_str(data.end + offset_accum, END_TAG);
+        offset_accum += END_TAG.len();
+    }
 }

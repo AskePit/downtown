@@ -528,17 +528,10 @@ mod tests {
     use std::time::SystemTime;
 
     #[test]
-    fn analyze_input() {
-        let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
-        let generator = Markdown2Html::new(input);
-        let _res = generator.generate_html();
-        //println!("{}", _res);
-    }
-
-    #[test]
+    #[ignore]
     fn benchmark() {
         let mut total_time = std::time::Duration::default();
-        const TIMES: usize = 10;
+        const TIMES: usize = 4000;
 
         for _ in 0..TIMES {
             let timer_start = SystemTime::now();
@@ -552,5 +545,14 @@ mod tests {
 
         let ms = total_time.as_millis();
         println!("  {} ms", ms);
+    }
+
+    #[test]
+    fn analyze_input() {
+        let input = std::fs::read_to_string("sample_data/code_test_input.md").unwrap();
+        let mut generator = Markdown2Html::new(input);
+        generator.set_number_of_threads(1);
+        let _res = generator.generate_html();
+        println!("{}", _res);
     }
 }
