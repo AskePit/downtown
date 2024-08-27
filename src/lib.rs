@@ -39,7 +39,7 @@ impl Markdown2Html {
     pub fn new(input: String) -> Markdown2Html {
         let input: Vec<_> = input
             .split('\n')
-            .filter(|x| !x.trim().is_empty())
+            //.filter(|x| !x.trim().is_empty())
             .map(|x| Arc::from(x.trim_end()))
             .collect();
 
@@ -244,6 +244,8 @@ impl Markdown2Html {
                 ("## ", UnitType::Header(2)),
                 ("### ", UnitType::Header(3)),
                 ("#### ", UnitType::Header(4)),
+                ("##### ", UnitType::Header(5)),
+                ("###### ", UnitType::Header(6)),
                 ("![[", UnitType::LocalLink),
                 ("![", UnitType::Image),
                 ("---", UnitType::HorizontalLine),
@@ -255,7 +257,7 @@ impl Markdown2Html {
                 }
             }
 
-            {
+            if !input[i].is_empty() {
                 context.unit_types.push(UnitType::Text);
                 context.parse_units.push(Arc::from(&input[i..i + 1]));
             }
@@ -367,6 +369,7 @@ fn process_code(markdown_unit: ParseUnit, output: &mut String) {
         .trim();
 
     let code = markdown_unit[1..markdown_unit.len() - 1].join("\n");
+    let code = escape_characters(code);
     let (lang, code) = highlight_code(lang, code.as_str());
 
     *output = format!("<pre><code class=\"language-{lang}\">{code}</code></pre>");
@@ -390,6 +393,7 @@ fn process_horizontal_line(markdown_unit: ParseUnit, output: &mut String) {
 fn process_inline_formatting(s: impl Into<String>) -> String {
     let mut res = s.into();
 
+    res = escape_characters(res);
     process_symmetric_inline_pattern("***", "<b><i>", "</i></b>", false, &mut res);
     process_symmetric_inline_pattern("___", "<b><i>", "</i></b>", true, &mut res);
     process_symmetric_inline_pattern("**", "<b>", "</b>", false, &mut res);
@@ -401,6 +405,10 @@ fn process_inline_formatting(s: impl Into<String>) -> String {
     process_links(&mut res);
 
     res
+}
+
+fn escape_characters(text: String) -> String {
+    text.replace("<", "&lt;").replace(">", "&gt;")
 }
 
 fn byte_index_to_char_index(text: &str, byte_index: usize) -> usize {
