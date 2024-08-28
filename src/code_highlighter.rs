@@ -6,6 +6,8 @@ enum HighlightClass {
     Literal,
     Comment,
     Call,
+    DiffAdd,
+    DiffRemove
 }
 
 struct MultilineCommentDesc {
@@ -25,6 +27,8 @@ impl Into<&str> for HighlightClass {
             HighlightClass::Literal => "<span class=\"code-literal\">",
             HighlightClass::Comment => "<span class=\"code-comment\">",
             HighlightClass::Call => "<span class=\"code-call\">",
+            HighlightClass::DiffAdd => "<span class=\"code-diff-add\">",
+            HighlightClass::DiffRemove => "<span class=\"code-diff-remove\">",
         }
     }
 }
@@ -251,6 +255,13 @@ type Lang = String;
 type Code = String;
 
 pub fn highlight_code(lang: &str, text: &str) -> (Lang, Code) {
+
+    let (lang, diff_mode) = if let Some(new_lang) = lang.strip_suffix(" diff") {
+        (new_lang, true)
+    } else {
+        (lang, false)
+    };
+
     let mut corrected_lang = lang.to_lowercase();
     let mut result = text.to_owned();
 
@@ -260,8 +271,13 @@ pub fn highlight_code(lang: &str, text: &str) -> (Lang, Code) {
         corrected_lang = "python".to_owned();
     }
 
-    let indices = get_highlight_indices(&corrected_lang, &result);
-    apply_highlighting(indices, &mut result);
+    let code_indices = get_highlight_indices(&corrected_lang, &result);
+    apply_highlighting(code_indices, &mut result);
+
+    if diff_mode {
+        let diff_indices = get_diff_indices(&result);
+        apply_highlighting(diff_indices, &mut result);
+    }
 
     (corrected_lang, result)
 }
@@ -412,6 +428,30 @@ fn parse_code(
         .into_iter()
         .filter(|x| !x.dead)
         .collect::<Vec<_>>();
+
+    highlights
+}
+
+fn get_diff_indices(text: &String) -> Vec<HighlightData> {
+    let mut highlights = Vec::new();
+    let mut line_start = 0;
+
+    for line in text.lines() {
+        let line_length = line.len();
+
+        if line.starts_with('+') {
+            let line_end = line_start + line_length;
+            highlights.push(HighlightData::new( HighlightClass::DiffAdd, line_start, line_end));
+        }
+
+        if line.starts_with('-') {
+            let line_end = line_start + line_length;
+            highlights.push(HighlightData::new( HighlightClass::DiffRemove, line_start, line_end));
+        }
+
+        // Update the start index for the next line
+        line_start += line_length + 1; // +1 for the '\n' character
+    }
 
     highlights
 }
