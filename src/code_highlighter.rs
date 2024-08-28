@@ -351,13 +351,18 @@ fn parse_code(
                 highlights.push(HighlightData::new(HighlightClass::Literal, i, code.len()));
                 break;
             }
-        } else if remainder.starts_with('\'')
-            && remainder.len() > 2
-            && remainder[2..].starts_with('\'')
-        {
-            // Character literals
-            highlights.push(HighlightData::new(HighlightClass::Literal, i, i + 3));
-            i += 3;
+        } else if remainder.starts_with('\'') {
+            if let Some(end) = remainder[1..].find('\'') {
+                highlights.push(HighlightData::new(
+                    HighlightClass::Literal,
+                    i,
+                    i + end + 2, // Account for the closing quote
+                ));
+                i += end + 2;
+            } else {
+                highlights.push(HighlightData::new(HighlightClass::Literal, i, code.len()));
+                break;
+            }
         } else if remainder.starts_with(|c: char| c.is_ascii_digit()) {
             // Numbers (simple detection of integers and floats)
             let mut end = 0;
