@@ -66,9 +66,17 @@ fn main() -> Result<(), Box<dyn Error>> {
             r#"
 downtown.exe -i <input> [-j <number>] [-o <output>]
 
--i, --input      Input *.md file
--o, --output     Output *.html file. If not specified, a file with same name as <input> file will be
-                 created but with .html extension
+-i, --input      Either a path to *.md file or a path to directory which will be recursively
+                 traversed and all *.md files will be processed
+
+-o, --output     If <input> is a path to a file then <output> is a path to output *.html file. If
+                 file does not exist it'll be created. If file exists it'll be overwritten. If not
+                 specified, a file with same name as <input> file will be created but with .html
+                 extension.
+
+                 If <input> is a path to a directory then <output> is treated as a filename to be
+                 created besides each processed *.md file
+
 -j, --threads    Number of threads to run. Default is 4"#
         );
         return Ok(());
