@@ -37,13 +37,9 @@ struct ParseContext {
 
 impl Markdown2Html {
     pub fn new(input: String) -> Markdown2Html {
-        let input: Vec<_> = input
-            .split('\n')
-            //.filter(|x| !x.trim().is_empty())
-            .map(|x| Arc::from(x.trim_end()))
-            .collect();
+        let input: Vec<_> = input.split('\n').map(|x| Arc::from(x.trim_end())).collect();
 
-        let parse_context = Markdown2Html::analyze_input(&input);
+        let parse_context = Markdown2Html::analyze_input(input);
 
         Markdown2Html {
             parse_context,
@@ -109,35 +105,28 @@ impl Markdown2Html {
         let mut handles = vec![];
 
         for thread_index in 0..number_of_threads {
-            let input_chunk = parse_units
-                .iter()
-                .skip(thread_index * chunk_size)
-                .take(chunk_size)
-                .cloned()
-                .collect::<Vec<_>>();
+            fn get_chunk<T: Clone>(el: &Vec<T>, chunk_start: usize, chunk_size: usize) -> Vec<T> {
+                el.iter()
+                    .skip(chunk_start)
+                    .take(chunk_size)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            }
 
-            let unit_types_chunk = unit_types
-                .iter()
-                .skip(thread_index * chunk_size)
-                .take(chunk_size)
-                .cloned()
-                .collect::<Vec<_>>();
+            let chunk_start = thread_index * chunk_size;
 
-            let output_chunk = output_vec
-                .iter()
-                .skip(thread_index * chunk_size)
-                .take(chunk_size)
-                .cloned()
-                .collect::<Vec<_>>();
+            let input_chunk = get_chunk(parse_units, chunk_start, chunk_size);
+            let unit_types_chunk = get_chunk(unit_types, chunk_start, chunk_size);
+            let output_chunk = get_chunk(&output_vec, chunk_start, chunk_size);
 
             let handle = thread::spawn(move || {
                 for (item, (unit_type, output)) in input_chunk
-                    .iter()
-                    .zip(unit_types_chunk.iter().zip(output_chunk))
+                    .into_iter()
+                    .zip(unit_types_chunk.into_iter().zip(output_chunk))
                 {
                     let mut output = output.lock().unwrap();
 
-                    process_unit(item.clone(), *unit_type, &mut output);
+                    process_unit(item.clone(), unit_type, &mut output);
                 }
             });
 
@@ -158,7 +147,7 @@ impl Markdown2Html {
         final_output.join("\n")
     }
 
-    fn analyze_input(input: &[Block]) -> ParseContext {
+    fn analyze_input(input: Vec<Block>) -> ParseContext {
         let mut context = ParseContext {
             parse_units: vec![],
             unit_types: vec![],
