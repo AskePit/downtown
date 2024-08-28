@@ -1,4 +1,4 @@
-# Artistic Style
+## Artistic Style
 
 We decided, that a__essence__,of the __game__ and its _lore_ would b**e extrac**ted__b from the visual__ content we chose as the basis for the game. After digging into Ilya's concepts, we selected this art style ___and_game_world___:
 
@@ -16,7 +16,7 @@ We decided to start with a small prototype level, just to see how it turns out. 
 - Several platforms to jump onto.
 
 
-# In Search of a Game Engine
+## In Search of a Game Engine
 
 Engines considered and rejected:
 
@@ -34,7 +34,7 @@ Can I say something bad about Godot? Its logo is just awful.
 
 ![Godot Logo](https://habrastorage.org/webt/u-/ot/9z/u-ot9zns-1gkrhuucdnklw2mabg.png)
 
-# Distances
+## Distances
 
 But how is such a variation of the diagram built, and what is this "Manhattan distance" thing? I went to Wikipedia again to find the answers. In short, the [Manhattan distance](https://en.wikipedia.org/wiki/Taxicab_geometry) is an alternative way to calculate the distance between two points.
 

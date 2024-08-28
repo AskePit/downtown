@@ -164,6 +164,8 @@ impl Markdown2Html {
             unit_types: vec![],
         };
 
+        let mut h1_counter: usize = 0;
+
         let mut multiline_state = false;
         let mut multiline_counter: usize = 0;
 
@@ -253,6 +255,10 @@ impl Markdown2Html {
                 if block.starts_with(pattern) {
                     context.unit_types.push(unit_type);
                     context.parse_units.push(Arc::from(&input[i..i + 1]));
+
+                    if unit_type == UnitType::Header(1) {
+                        h1_counter += 1;
+                    }
                     continue 'outer;
                 }
             }
@@ -270,6 +276,22 @@ impl Markdown2Html {
                     &input[block_start..block_start + multiline_counter],
                 ));
             }
+        }
+
+        let auto_headers_downgrade = true;
+
+        if h1_counter > 1 && auto_headers_downgrade {
+            context.unit_types = context
+                .unit_types
+                .into_iter()
+                .map(|unit| {
+                    if let UnitType::Header(level) = unit {
+                        UnitType::Header(level + 1)
+                    } else {
+                        unit
+                    }
+                })
+                .collect();
         }
 
         context
@@ -557,7 +579,7 @@ mod tests {
 
     #[test]
     fn analyze_input() {
-        let input = std::fs::read_to_string("sample_data/code_test_input.md").unwrap();
+        let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
         let mut generator = Markdown2Html::new(input);
         generator.set_number_of_threads(1);
         let _res = generator.generate_html();
