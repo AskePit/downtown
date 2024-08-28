@@ -154,22 +154,21 @@ fn cplusplus_keywords() -> HashSet<&'static str> {
         "while",
         "xor",
         "xor_eq",
-
-        "define",      // Defines a macro
-        "undef",       // Undefines a macro
-        "include",     // Includes a file
-        "if",          // Starts a conditional directive
-        "ifdef",       // Checks if a macro is defined
-        "ifndef",      // Checks if a macro is not defined
-        "else",        // Provides an alternative for #if
-        "elif",        // Else-if condition for #if
-        "endif",       // Ends a conditional directive
-        "error",       // Generates a compile-time error
-        "pragma",      // Special compiler instructions
-        "line",        // Changes the current line number
-        "warning",     // Generates a compile-time warning
-        "region",      // Marks the start of a region (non-standard)
-        "endregion",   // Marks the end of a region (non-standard)
+        "define",    // Defines a macro
+        "undef",     // Undefines a macro
+        "include",   // Includes a file
+        "if",        // Starts a conditional directive
+        "ifdef",     // Checks if a macro is defined
+        "ifndef",    // Checks if a macro is not defined
+        "else",      // Provides an alternative for #if
+        "elif",      // Else-if condition for #if
+        "endif",     // Ends a conditional directive
+        "error",     // Generates a compile-time error
+        "pragma",    // Special compiler instructions
+        "line",      // Changes the current line number
+        "warning",   // Generates a compile-time warning
+        "region",    // Marks the start of a region (non-standard)
+        "endregion", // Marks the end of a region (non-standard)
     ];
     HashSet::from(keywords)
 }
