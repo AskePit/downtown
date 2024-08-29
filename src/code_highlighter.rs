@@ -7,7 +7,7 @@ enum HighlightClass {
     Comment,
     Call,
     DiffAdd,
-    DiffRemove
+    DiffRemove,
 }
 
 struct MultilineCommentDesc {
@@ -255,7 +255,6 @@ type Lang = String;
 type Code = String;
 
 pub fn highlight_code(lang: &str, text: &str) -> (Lang, Code) {
-
     let (lang, diff_mode) = if let Some(new_lang) = lang.strip_suffix(" diff") {
         (new_lang, true)
     } else {
@@ -441,12 +440,20 @@ fn get_diff_indices(text: &String) -> Vec<HighlightData> {
 
         if line.starts_with('+') {
             let line_end = line_start + line_length;
-            highlights.push(HighlightData::new( HighlightClass::DiffAdd, line_start, line_end));
+            highlights.push(HighlightData::new(
+                HighlightClass::DiffAdd,
+                line_start,
+                line_end,
+            ));
         }
 
         if line.starts_with('-') {
             let line_end = line_start + line_length;
-            highlights.push(HighlightData::new( HighlightClass::DiffRemove, line_start, line_end));
+            highlights.push(HighlightData::new(
+                HighlightClass::DiffRemove,
+                line_start,
+                line_end,
+            ));
         }
 
         // Update the start index for the next line
