@@ -31,6 +31,7 @@ enum UnitType {
 struct ParseContext {
     parse_units: Vec<ParseUnit>,
     unit_types: Vec<UnitType>,
+    title: Arc<str>,
 }
 
 pub struct Markdown2Html {
@@ -106,7 +107,8 @@ impl Markdown2Html {
         }
 
         let html_body = output_vec.join("\n");
-        self.configurator.frame_page(html_body)
+        self.configurator
+            .frame_page(&self.parse_context.title, html_body)
     }
 
     fn generate_html_multi_threaded(&self, number_of_threads: u8) -> String {
@@ -134,7 +136,7 @@ impl Markdown2Html {
         let mut handles = vec![];
 
         for thread_index in 0..number_of_threads {
-            fn get_chunk<T: Clone>(el: &Vec<T>, chunk_start: usize, chunk_size: usize) -> Vec<T> {
+            fn get_chunk<T: Clone>(el: &[T], chunk_start: usize, chunk_size: usize) -> Vec<T> {
                 el.iter()
                     .skip(chunk_start)
                     .take(chunk_size)
@@ -175,13 +177,15 @@ impl Markdown2Html {
             .collect();
 
         let html_body = final_output.join("\n");
-        self.configurator.frame_page(html_body)
+        self.configurator
+            .frame_page(&self.parse_context.title, html_body)
     }
 
     fn analyze_input(input: Vec<Block>) -> ParseContext {
         let mut context = ParseContext {
             parse_units: vec![],
             unit_types: vec![],
+            title: Arc::from(""),
         };
 
         let mut h1_counter: usize = 0;
@@ -277,6 +281,9 @@ impl Markdown2Html {
                     context.parse_units.push(Arc::from(&input[i..i + 1]));
 
                     if unit_type == UnitType::Header(1) {
+                        if h1_counter == 0 {
+                            context.title = Arc::from(input[i].trim_start_matches('#').trim());
+                        }
                         h1_counter += 1;
                     }
                     continue 'outer;
@@ -301,12 +308,19 @@ impl Markdown2Html {
         let auto_headers_downgrade = true;
 
         if h1_counter > 1 && auto_headers_downgrade {
+            let mut first = true;
+
             context.unit_types = context
                 .unit_types
                 .into_iter()
                 .map(|unit| {
                     if let UnitType::Header(level) = unit {
-                        UnitType::Header(level + 1)
+                        if first {
+                            first = false;
+                            unit
+                        } else {
+                            UnitType::Header(level + 1)
+                        }
                     } else {
                         unit
                     }
@@ -419,7 +433,7 @@ fn process_blockquote(markdown_unit: ParseUnit, configurator: &Configurator) -> 
     let text = markdown_unit
         .iter()
         .map(|x| x.trim().trim_start_matches('>').trim())
-        .map(|x| process_inline_formatting(x, &configurator))
+        .map(|x| process_inline_formatting(x, configurator))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -487,7 +501,7 @@ fn process_symmetric_inline_pattern(
             .filter(|&byte_index| {
                 head = !head;
 
-                let pattern_position = byte_index_to_char_index(&text, byte_index);
+                let pattern_position = byte_index_to_char_index(text, byte_index);
 
                 let determine_char_index = if head {
                     if pattern_position == 0 {
@@ -623,6 +637,6 @@ mod tests {
         let mut generator = Markdown2Html::new(input);
         generator.set_number_of_threads(1);
         let _res = generator.generate_html();
-        println!("{}", _res);
+        //println!("{}", _res);
     }
 }

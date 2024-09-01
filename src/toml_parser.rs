@@ -31,16 +31,16 @@ impl TomlDoc {
         let mut inside_multiline = false;
 
         for line in input.lines() {
-            let line = line.trim();
+            let line = line.trim_end();
 
             if line.is_empty() || line.starts_with('#') {
                 continue; // Skip empty lines and comments
             }
 
             if inside_multiline {
-                if line.ends_with("'''") {
+                if let Some(stripped) = line.strip_suffix("'''") {
                     // End of multiline string
-                    multiline_value.push_str(&line[..line.len() - 3]);
+                    multiline_value.push_str(stripped);
                     inside_multiline = false;
 
                     if let Some(table) = &current_table {
@@ -74,11 +74,11 @@ impl TomlDoc {
                 let key = key.trim().to_string();
                 let value = value.trim();
 
-                if value.starts_with("'''") {
+                if let Some(stripped) = value.strip_prefix("'''") {
                     // Start of multiline string
                     inside_multiline = true;
                     current_key = Some(key);
-                    multiline_value.push_str(&value[3..]);
+                    multiline_value.push_str(stripped);
                     multiline_value.push('\n');
                 } else if value.starts_with('\'') && value.ends_with('\'') {
                     // Single-quoted string

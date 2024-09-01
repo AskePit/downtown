@@ -281,7 +281,7 @@ pub fn highlight_code(lang: &str, text: &str) -> (Lang, Code) {
     (corrected_lang, result)
 }
 
-fn get_highlight_indices(lang: &str, text: &String) -> Vec<HighlightData> {
+fn get_highlight_indices(lang: &str, text: &str) -> Vec<HighlightData> {
     let keywords = match lang {
         "cpp" | "c" => cplusplus_keywords(),
         "javascript" => javascript_keywords(),
@@ -313,7 +313,7 @@ fn get_highlight_indices(lang: &str, text: &String) -> Vec<HighlightData> {
 // DISCLAIMER:
 // ChatGPT-4 written function. Potentially can be optimized
 fn parse_code(
-    code: &String,
+    code: &str,
     keywords: HashSet<&str>,
     comments_desc: CommentsDesc,
 ) -> Vec<HighlightData> {

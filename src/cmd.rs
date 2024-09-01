@@ -13,8 +13,7 @@ pub(crate) fn get_string_by_tag(short_tag: &str, long_tag: &str) -> Option<Strin
         .position(|x| x == short_tag)
         .or_else(|| args().position(|x| x == long_tag))
         .map(|x| x + 1)
-        .map(|x| args().nth(x))
-        .flatten()
+        .and_then(|x| args().nth(x))
 }
 
 pub(crate) fn get_path_by_tag(short_tag: &str, long_tag: &str) -> Option<PathBuf> {

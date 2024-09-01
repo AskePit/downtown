@@ -57,13 +57,13 @@ fn process_file(
     number_of_threads: u8,
 ) -> Result<(), Box<dyn Error>> {
     let input = fs::read_to_string(input_path)?;
-    let config = config_path.map(|x| fs::read_to_string(x).ok()).flatten();
+    let config = config_path.and_then(|x| fs::read_to_string(x).ok());
 
     let parser = Markdown2Html::new_with_config(input, number_of_threads, config);
     let res = parser.generate_html();
 
     let mut f = fs::File::create(output_path)?;
-    f.write(res.as_bytes())?;
+    f.write_all(res.as_bytes())?;
 
     Ok(())
 }
@@ -113,13 +113,13 @@ TBD
     let input_path = cmd::get_path_by_tag("-i", "--input");
 
     if input_path.is_none() {
-        return Err("input markdown file is not specified!")?;
+        Err("input markdown file is not specified!")?;
     }
 
     let input_path = input_path.unwrap();
 
     if !input_path.exists() {
-        return Err("specified input path does not exist!")?;
+        Err("specified input path does not exist!")?;
     }
 
     let config_path = cmd::get_path_by_tag("-c", "--config");
@@ -130,7 +130,7 @@ TBD
         let output_name =
             cmd::get_string_by_tag("-o", "--output").unwrap_or("index.html".to_owned());
 
-        let output_name = if let None = output_name.strip_suffix(".html") {
+        let output_name = if output_name.strip_suffix(".html").is_none() {
             output_name + ".html"
         } else {
             output_name
@@ -141,7 +141,7 @@ TBD
         let output_path = cmd::get_path_by_tag("-o", "--output")
             .unwrap_or_else(|| input_path.with_extension("html"));
 
-        let output_path = if let None = output_path.extension() {
+        let output_path = if output_path.extension().is_none() {
             output_path.with_extension("html")
         } else {
             output_path
@@ -149,7 +149,7 @@ TBD
 
         process_file(input_path, output_path, config_path, number_of_threads)?;
     } else {
-        return Err("specified input path is neither file nor directory!")?;
+        Err("specified input path is neither file nor directory!")?;
     }
 
     Ok(())

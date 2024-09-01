@@ -126,33 +126,28 @@ impl Configurator {
                 .clone(),
             header1: doc
                 .get("tags", "header1")
-                .map(|x| x.clone())
+                .cloned()
                 .or(default_config.header1),
             header2: doc
                 .get("tags", "header2")
-                .map(|x| x.clone())
-                .or(default_config.header2)
-                .clone(),
+                .cloned()
+                .or(default_config.header2),
             header3: doc
                 .get("tags", "header3")
-                .map(|x| x.clone())
-                .or(default_config.header3)
-                .clone(),
+                .cloned()
+                .or(default_config.header3),
             header4: doc
                 .get("tags", "header4")
-                .map(|x| x.clone())
-                .or(default_config.header4)
-                .clone(),
+                .cloned()
+                .or(default_config.header4),
             header5: doc
                 .get("tags", "header5")
-                .map(|x| x.clone())
-                .or(default_config.header5)
-                .clone(),
+                .cloned()
+                .or(default_config.header5),
             header6: doc
                 .get("tags", "header6")
-                .map(|x| x.clone())
-                .or(default_config.header6)
-                .clone(),
+                .cloned()
+                .or(default_config.header6),
             error: doc
                 .get("tags", "error")
                 .unwrap_or(&default_config.error)
@@ -160,8 +155,8 @@ impl Configurator {
         }
     }
 
-    pub fn frame_page(&self, page: String) -> String {
-        self.prologue.clone() + &page + &self.epilogue
+    pub fn frame_page(&self, title: &str, page: String) -> String {
+        self.prologue.replace("{title}", title) + &page + &self.epilogue
     }
 
     pub fn process_paragraph(&self, text: &str) -> String {
