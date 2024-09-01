@@ -1,0 +1,18 @@
+[page]
+prologue = ''
+epilogue = ''
+
+[tags]
+image = '<img src="{src}" alt="{caption}">'
+link = '<a href="{src}">{caption}</a>'
+latex = '<p class="latex">{text}</p>'
+code = '<pre><code class="language-{lang}">{text}</code></pre>'
+blockquote = '<blockquote>{text}</blockquote>'
+horizontal-line = '<hr>'
+paragraph = '<p>{text}</p>'
+bold = '<b>{text}</b>'
+italic = '<i>{text}</i>'
+strikethrough = '<s>{text}</s>'
+code-inline = '<code>{text}</code>'
+header = '<h{level}>{text}</h{level}>'
+error = '<div class="parse-error">{text}</div>'

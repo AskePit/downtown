@@ -27,6 +27,7 @@ fn visit_dirs(
 fn process_dir(
     dir: PathBuf,
     output_name: String,
+    config_path: Option<PathBuf>,
     number_of_threads: u8,
 ) -> Result<(), Box<dyn Error>> {
     visit_dirs(&dir, &|entry| {
@@ -36,7 +37,12 @@ fn process_dir(
                 if ext == "md" {
                     let output_path = input_path.parent().unwrap().join(&output_name);
 
-                    process_file(input_path, output_path, number_of_threads)?;
+                    process_file(
+                        input_path,
+                        output_path,
+                        config_path.clone(),
+                        number_of_threads,
+                    )?;
                 }
             }
         }
@@ -47,11 +53,13 @@ fn process_dir(
 fn process_file(
     input_path: PathBuf,
     output_path: PathBuf,
+    config_path: Option<PathBuf>,
     number_of_threads: u8,
 ) -> Result<(), Box<dyn Error>> {
-    let input = std::fs::read_to_string(input_path)?;
-    let mut parser = Markdown2Html::new(input);
-    parser.set_number_of_threads(number_of_threads);
+    let input = fs::read_to_string(input_path)?;
+    let config = config_path.map(|x| fs::read_to_string(x).ok()).flatten();
+
+    let parser = Markdown2Html::new_with_config(input, number_of_threads, config);
     let res = parser.generate_html();
 
     let mut f = fs::File::create(output_path)?;
@@ -64,7 +72,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     if cmd::has_tag("-h", "--help") {
         println!(
             r#"
-downtown.exe -i <input> [-j <number>] [-o <output>]
+GENERIC USE
+===========
+
+downtown.exe -i <input> [-o <output>]
+
+ALL PARAMETERS
+==============
 
 -i, --input      Either a path to *.md file or a path to directory which will be recursively
                  traversed and all *.md files will be processed
@@ -77,8 +91,22 @@ downtown.exe -i <input> [-j <number>] [-o <output>]
                  If <input> is a path to a directory then <output> is treated as a filename to be
                  created besides each processed *.md file
 
--j, --threads    Number of threads to run. Default is 4"#
+-c, --config     A path to the configuration *.toml file, where you can fine-tune generator behaviour
+
+-j, --threads    Number of threads to run. Default is 4
+
+CONFIGURATION FILE SPEC
+=======================
+
+TBD
+"#
         );
+        return Ok(());
+    }
+
+    if cmd::has_tag("-hc", "--help-config") {
+        // TODO;
+        println!("TBD");
         return Ok(());
     }
 
@@ -94,6 +122,8 @@ downtown.exe -i <input> [-j <number>] [-o <output>]
         return Err("specified input path does not exist!")?;
     }
 
+    let config_path = cmd::get_path_by_tag("-c", "--config");
+
     let number_of_threads = cmd::get_number_by_tag("-j", "--threads").unwrap_or(0);
 
     if input_path.is_dir() {
@@ -106,7 +136,7 @@ downtown.exe -i <input> [-j <number>] [-o <output>]
             output_name
         };
 
-        process_dir(input_path, output_name, number_of_threads)?;
+        process_dir(input_path, output_name, config_path, number_of_threads)?;
     } else if input_path.is_file() {
         let output_path = cmd::get_path_by_tag("-o", "--output")
             .unwrap_or_else(|| input_path.with_extension("html"));
@@ -117,7 +147,7 @@ downtown.exe -i <input> [-j <number>] [-o <output>]
             output_path
         };
 
-        process_file(input_path, output_path, number_of_threads)?;
+        process_file(input_path, output_path, config_path, number_of_threads)?;
     } else {
         return Err("specified input path is neither file nor directory!")?;
     }

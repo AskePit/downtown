@@ -1,0 +1,42 @@
+[page]
+prologue = '''
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Test page</title>
+</head>
+<body>
+'''
+
+epilogue = '''
+</body>
+</html>
+'''
+
+[tags]
+image = '''
+<div class="image">
+    <figure>
+        <img src="{src}" alt="{caption}">
+        <figcaption>{caption}</figcaption>
+    </figure>
+</div>
+'''
+
+link = '<b><a href="{src}">{caption}</a></b>'
+
+latex = '<p class="latex">{text}</p>'
+code = '<pre><code class="language-{lang}">{text}</code></pre>'
+blockquote = '<div class="blockquote">{text}</div>'
+horizontal-line = '<hr><hr>'
+paragraph = '<p class="paragraph">{text}</p>'
+bold = '<strong>{text}</strong>'
+italic = '<em>{text}</em>'
+strikethrough = '<del>{text}</del>'
+code-inline = '<code>{text}</code>'
+
+header = '<div class="h{level}">{text}</div>'
+header3 = '<div class="special-header">{text}</div>'
+
+error = '<div class="parse-error">{text}</div>'

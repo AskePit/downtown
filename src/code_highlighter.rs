@@ -20,9 +20,9 @@ struct CommentsDesc {
     multiline: Vec<MultilineCommentDesc>,
 }
 
-impl Into<&str> for HighlightClass {
-    fn into(self) -> &'static str {
-        match self {
+impl From<HighlightClass> for &str {
+    fn from(val: HighlightClass) -> Self {
+        match val {
             HighlightClass::Keyword => "<span class=\"code-keyword\">",
             HighlightClass::Literal => "<span class=\"code-literal\">",
             HighlightClass::Comment => "<span class=\"code-comment\">",
@@ -281,8 +281,8 @@ pub fn highlight_code(lang: &str, text: &str) -> (Lang, Code) {
     (corrected_lang, result)
 }
 
-fn get_highlight_indices(lang: &String, text: &String) -> Vec<HighlightData> {
-    let keywords = match lang.as_str() {
+fn get_highlight_indices(lang: &str, text: &String) -> Vec<HighlightData> {
+    let keywords = match lang {
         "cpp" | "c" => cplusplus_keywords(),
         "javascript" => javascript_keywords(),
         "python" => python_keywords(),
@@ -290,7 +290,7 @@ fn get_highlight_indices(lang: &String, text: &String) -> Vec<HighlightData> {
         _ => all_keywords(),
     };
 
-    let comments_desc: CommentsDesc = match lang.as_str() {
+    let comments_desc: CommentsDesc = match lang {
         "python" => CommentsDesc {
             oneline: vec!["#"],
             multiline: vec![MultilineCommentDesc {
@@ -298,7 +298,7 @@ fn get_highlight_indices(lang: &String, text: &String) -> Vec<HighlightData> {
                 end: "'''",
             }],
         },
-        "cpp" | "c" | "javascript" | "rust" | _ => CommentsDesc {
+        _ => CommentsDesc {
             oneline: vec!["//"],
             multiline: vec![MultilineCommentDesc {
                 start: "/*",
@@ -310,6 +310,8 @@ fn get_highlight_indices(lang: &String, text: &String) -> Vec<HighlightData> {
     parse_code(text, keywords, comments_desc)
 }
 
+// DISCLAIMER:
+// ChatGPT-4 written function. Potentially can be optimized
 fn parse_code(
     code: &String,
     keywords: HashSet<&str>,
@@ -322,10 +324,11 @@ fn parse_code(
         let remainder = &code[i..];
 
         // Check for one-line comments
-        if let Some(_) = comments_desc
+        if comments_desc
             .oneline
             .iter()
             .find_map(|&marker| remainder.strip_prefix(marker))
+            .is_some()
         {
             if let Some(end) = remainder.find('\n') {
                 highlights.push(HighlightData::new(HighlightClass::Comment, i, i + end));
@@ -354,8 +357,8 @@ fn parse_code(
             }
         }
         // Check for literals (strings, chars, numbers)
-        else if remainder.starts_with('"') {
-            if let Some(end) = remainder[1..].find('"') {
+        else if let Some(stripped) = remainder.strip_prefix('"') {
+            if let Some(end) = stripped.find('"') {
                 highlights.push(HighlightData::new(
                     HighlightClass::Literal,
                     i,
@@ -366,8 +369,8 @@ fn parse_code(
                 highlights.push(HighlightData::new(HighlightClass::Literal, i, code.len()));
                 break;
             }
-        } else if remainder.starts_with('\'') {
-            if let Some(end) = remainder[1..].find('\'') {
+        } else if let Some(stripped) = remainder.strip_prefix('\'') {
+            if let Some(end) = stripped.find('\'') {
                 highlights.push(HighlightData::new(
                     HighlightClass::Literal,
                     i,
@@ -423,15 +426,13 @@ fn parse_code(
         }
     }
 
-    let highlights = highlights
+    highlights
         .into_iter()
         .filter(|x| !x.dead)
-        .collect::<Vec<_>>();
-
-    highlights
+        .collect::<Vec<_>>()
 }
 
-fn get_diff_indices(text: &String) -> Vec<HighlightData> {
+fn get_diff_indices(text: &str) -> Vec<HighlightData> {
     let mut highlights = Vec::new();
     let mut line_start = 0;
 
@@ -467,7 +468,7 @@ fn apply_highlighting(indices: Vec<HighlightData>, text: &mut String) {
     let mut offset_accum: usize = 0;
     for data in indices {
         let start_tag = data.highlight_class.into();
-        const END_TAG: &'static str = "</span>";
+        const END_TAG: &str = "</span>";
 
         text.insert_str(data.start + offset_accum, start_tag);
         offset_accum += start_tag.len();
