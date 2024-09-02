@@ -1,4 +1,5 @@
 use crate::toml_parser::TomlDoc;
+use crate::utils::StrUtils;
 use crate::Level;
 
 #[derive(Clone)]
@@ -156,11 +157,11 @@ impl Configurator {
     }
 
     pub fn frame_page(&self, title: &str, page: String) -> String {
-        self.prologue.replace("{title}", title) + &page + &self.epilogue
+        self.prologue.better_replace("{title}", title) + &page + &self.epilogue
     }
 
     pub fn process_paragraph(&self, text: &str) -> String {
-        self.paragraph.replace("{text}", text)
+        self.paragraph.better_replace("{text}", text)
     }
 
     pub fn process_header(&self, level: Level, text: &str) -> String {
@@ -175,19 +176,19 @@ impl Configurator {
             if let Some(h) = h {
                 if level == l {
                     return h
-                        .replace("{text}", text)
-                        .replace("{level}", &level.to_string());
+                        .better_replace("{text}", text)
+                        .better_replace("{level}", &level.to_string());
                 }
             }
         }
 
         self.header
-            .replace("{text}", text)
-            .replace("{level}", &level.to_string())
+            .better_replace("{text}", text)
+            .better_replace("{level}", &level.to_string())
     }
 
     pub fn process_blockquote(&self, text: &str) -> String {
-        self.blockquote.replace("{text}", text)
+        self.blockquote.better_replace("{text}", text)
     }
 
     pub fn process_horizontal_line(&self) -> String {
@@ -196,45 +197,47 @@ impl Configurator {
 
     pub fn process_image(&self, src: &str, caption: &str) -> String {
         self.image
-            .replace("{caption}", caption)
-            .replace("{src}", src)
+            .better_replace("{caption}", caption)
+            .better_replace("{src}", src)
     }
 
     pub fn process_link(&self, src: &str, caption: &str) -> String {
         self.link
-            .replace("{caption}", caption)
-            .replace("{src}", src)
+            .better_replace("{caption}", caption)
+            .better_replace("{src}", src)
     }
 
     pub fn process_latex(&self, text: &str) -> String {
-        self.latex.replace("{text}", text)
+        self.latex.better_replace("{text}", text)
     }
 
     pub fn process_code(&self, lang: &str, text: &str) -> String {
-        self.code.replace("{lang}", lang).replace("{text}", text)
+        self.code
+            .better_replace("{lang}", lang)
+            .better_replace("{text}", text)
     }
 
     pub fn process_code_inline(&self, text: &str) -> String {
-        self.code_inline.replace("{text}", text)
+        self.code_inline.better_replace("{text}", text)
     }
 
     pub fn process_bold(&self, text: &str) -> String {
-        self.bold.replace("{text}", text)
+        self.bold.better_replace("{text}", text)
     }
 
     pub fn process_italic(&self, text: &str) -> String {
-        self.italic.replace("{text}", text)
+        self.italic.better_replace("{text}", text)
     }
 
     pub fn process_italic_bold(&self, text: &str) -> String {
-        self.italic_bold.replace("{text}", text)
+        self.italic_bold.better_replace("{text}", text)
     }
 
     pub fn process_strikethrough(&self, text: &str) -> String {
-        self.strikethrough.replace("{text}", text)
+        self.strikethrough.better_replace("{text}", text)
     }
 
     pub fn process_error(&self, text: &str) -> String {
-        self.error.replace("{text}", text)
+        self.error.better_replace("{text}", text)
     }
 }

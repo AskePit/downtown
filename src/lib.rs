@@ -1,9 +1,11 @@
 mod code_highlighter;
 mod configurator;
 mod toml_parser;
+mod utils;
 
 use crate::code_highlighter::highlight_code;
 use crate::configurator::Configurator;
+use crate::utils::StrUtils;
 use std::cmp::PartialEq;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
@@ -476,7 +478,7 @@ fn process_inline_formatting(s: impl Into<String>, configurator: &Configurator) 
 }
 
 fn escape_characters(text: String) -> String {
-    text.replace("<", "&lt;").replace(">", "&gt;")
+    text.better_replace("<", "&lt;").better_replace(">", "&gt;")
 }
 
 fn byte_index_to_char_index(text: &str, byte_index: usize) -> usize {
