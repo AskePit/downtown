@@ -175,7 +175,7 @@ impl Markdown2Html {
         let final_output: Vec<String> = Arc::try_unwrap(output_vec)
             .unwrap()
             .into_iter()
-            .map(|cell| Arc::try_unwrap(cell).unwrap().into_inner().unwrap().clone())
+            .map(|cell| Arc::try_unwrap(cell).unwrap().into_inner().unwrap())
             .collect();
 
         let html_body = final_output.join("\n");
@@ -213,7 +213,7 @@ impl Markdown2Html {
                         }
                     }
                     UnitType::Blockquote => {
-                        if block.starts_with(">") {
+                        if block.starts_with('>') {
                             multiline_counter += 1;
                             continue;
                         } else {
