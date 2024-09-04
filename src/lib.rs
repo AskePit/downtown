@@ -356,7 +356,7 @@ impl Markdown2Html {
                 .collect();
         }
 
-        if h1_counter != 1 && auto_insert_header {
+        if h1_counter != 1 && auto_insert_header && !context.title.trim().is_empty() {
             context.unit_types.insert(0, UnitType::Header(1));
             context.parse_units.insert(
                 0,
