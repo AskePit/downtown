@@ -1,10 +1,12 @@
 mod code_highlighter;
 mod configurator;
+mod frontmatter_parser;
 mod toml_parser;
 mod utils;
 
 use crate::code_highlighter::highlight_code;
 use crate::configurator::Configurator;
+use crate::frontmatter_parser::{Frontmatter, FrontmatterVar};
 use crate::utils::StrUtils;
 use std::cmp::PartialEq;
 use std::ops::Range;
@@ -34,7 +36,8 @@ enum UnitType {
 struct ParseContext {
     parse_units: Vec<ParseUnit>,
     unit_types: Vec<UnitType>,
-    title: Arc<str>,
+    title: String,
+    tags: Vec<String>,
 }
 
 pub struct Markdown2Html {
@@ -45,9 +48,10 @@ pub struct Markdown2Html {
 
 impl Markdown2Html {
     pub fn new(input: String) -> Markdown2Html {
-        let input: Vec<_> = input.lines().map(|x| Arc::from(x.trim_end())).collect();
+        let (frontmatter, markdown) = Frontmatter::load(&input);
+        let markdown: Vec<_> = markdown.lines().map(|x| Arc::from(x.trim_end())).collect();
 
-        let parse_context = Markdown2Html::analyze_input(input);
+        let parse_context = Markdown2Html::analyze_input(markdown, frontmatter);
 
         Markdown2Html {
             parse_context,
@@ -61,9 +65,10 @@ impl Markdown2Html {
         number_of_threads: u8,
         config_toml: Option<String>,
     ) -> Markdown2Html {
-        let input: Vec<_> = input.split('\n').map(|x| Arc::from(x.trim_end())).collect();
+        let (frontmatter, markdown) = Frontmatter::load(&input);
+        let markdown: Vec<_> = markdown.lines().map(|x| Arc::from(x.trim_end())).collect();
 
-        let parse_context = Markdown2Html::analyze_input(input);
+        let parse_context = Markdown2Html::analyze_input(markdown, frontmatter);
 
         Markdown2Html {
             parse_context,
@@ -184,11 +189,36 @@ impl Markdown2Html {
             .frame_page(&self.parse_context.title, html_body)
     }
 
-    fn analyze_input(input: Vec<Block>) -> ParseContext {
+    fn analyze_input(input: Vec<Block>, frontmatter: Option<Frontmatter>) -> ParseContext {
+        let title = frontmatter
+            .as_ref()
+            .and_then(|f| f.get("title"))
+            .and_then(|var| {
+                if let FrontmatterVar::String(title) = var {
+                    Some(title.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| String::new());
+
+        let tags = frontmatter
+            .as_ref()
+            .and_then(|f| f.get("tags"))
+            .and_then(|var| {
+                if let FrontmatterVar::List(tags) = var {
+                    Some(tags.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| vec![]);
+
         let mut context = ParseContext {
             parse_units: vec![],
             unit_types: vec![],
-            title: Arc::from(""),
+            title,
+            tags,
         };
 
         let mut h1_counter: usize = 0;
@@ -288,9 +318,6 @@ impl Markdown2Html {
                     context.parse_units.push(Arc::from(&input[i..i + 1]));
 
                     if unit_type == UnitType::Header(1) {
-                        if h1_counter == 0 {
-                            context.title = Arc::from(input[i].trim_start_matches('#').trim());
-                        }
                         h1_counter += 1;
                     }
                     continue 'outer;
@@ -313,26 +340,30 @@ impl Markdown2Html {
         }
 
         let auto_headers_downgrade = true;
+        let auto_insert_header = true;
 
         if h1_counter > 1 && auto_headers_downgrade {
-            let mut first = true;
-
             context.unit_types = context
                 .unit_types
                 .into_iter()
                 .map(|unit| {
                     if let UnitType::Header(level) = unit {
-                        if first {
-                            first = false;
-                            unit
-                        } else {
-                            UnitType::Header(level + 1)
-                        }
+                        UnitType::Header(level + 1)
                     } else {
                         unit
                     }
                 })
                 .collect();
+        }
+
+        if h1_counter != 1 && auto_insert_header {
+            context.unit_types.insert(0, UnitType::Header(1));
+            context.parse_units.insert(
+                0,
+                ParseUnit::from(
+                    vec![Block::from(format!("# {}", context.title))].into_boxed_slice(),
+                ),
+            );
         }
 
         context
