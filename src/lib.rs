@@ -45,7 +45,7 @@ pub struct Markdown2Html {
 
 impl Markdown2Html {
     pub fn new(input: String) -> Markdown2Html {
-        let input: Vec<_> = input.split('\n').map(|x| Arc::from(x.trim_end())).collect();
+        let input: Vec<_> = input.lines().map(|x| Arc::from(x.trim_end())).collect();
 
         let parse_context = Markdown2Html::analyze_input(input);
 
@@ -203,7 +203,10 @@ impl Markdown2Html {
                 let state_type = context.unit_types.last().unwrap();
                 match state_type {
                     UnitType::List => {
-                        if block.trim_start().starts_with("- ") {
+                        if block.starts_with("- ")
+                            || block.starts_with("  ")
+                            || block.trim().is_empty()
+                        {
                             multiline_counter += 1;
                             continue;
                         } else {
@@ -382,12 +385,116 @@ fn process_header(level: Level, markdown_unit: ParseUnit, configurator: &Configu
 }
 
 fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
-    let mut res = "<ul>\n".to_owned();
-    for el in markdown_unit.iter() {
-        let text = el.trim().trim_start_matches('-').trim();
-        let text = process_inline_formatting(text, configurator);
-        res += format!("\t<li>{}</li>\n", text).as_str();
+    #[derive(PartialEq)]
+    enum State {
+        NewElementStart,
+        FirstLineParsed,
+        MultilineElement,
     }
+
+    const IDENT: &str = "  ";
+
+    let mut res = "<ul>\n".to_owned();
+
+    let mut state = State::NewElementStart;
+
+    let mut multiline_range = 0usize..0usize;
+
+    let mut i = 0usize;
+
+    while i < markdown_unit.len() {
+        let line = &markdown_unit[i];
+        if line.trim().is_empty() {
+            i += 1;
+            multiline_range.end += 1;
+            continue;
+        }
+
+        match state {
+            State::NewElementStart => {
+                state = State::FirstLineParsed;
+                multiline_range.start = i;
+            }
+            State::FirstLineParsed => {
+                if let Some(_) = line.strip_prefix(IDENT) {
+                    state = State::MultilineElement;
+                    multiline_range.end = i + 1;
+                } else {
+                    let text = markdown_unit[multiline_range.start]
+                        .trim()
+                        .trim_start_matches('-')
+                        .trim();
+                    let text = process_inline_formatting(text, configurator);
+                    res += format!("\t<li><p>{}</p></li>\n", text).as_str();
+
+                    if line.starts_with("- ") {
+                        state = State::NewElementStart;
+                        continue; // no `i` advance
+                    } else {
+                        break; // list end
+                    }
+                }
+            }
+            State::MultilineElement => {
+                if let Some(_) = line.strip_prefix("  ") {
+                    multiline_range.end += 1;
+                } else {
+                    // end of multiline
+                    let sub_doc = markdown_unit[multiline_range.clone()]
+                        .iter()
+                        .map(|x| x.chars().skip(2).collect::<String>())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    let mut parser = Markdown2Html::new(sub_doc);
+                    parser.configurator = configurator.clone();
+                    parser.configurator.prologue = String::new();
+                    parser.configurator.epilogue = String::new();
+
+                    let html = parser.generate_html_single_threaded();
+                    res += format!("\t<li>{}</li>\n", html).as_str();
+
+                    if line.starts_with("- ") {
+                        state = State::NewElementStart;
+                        continue; // no `i` advance
+                    } else {
+                        break; // list end
+                    }
+                }
+            }
+        }
+
+        i += 1;
+    }
+
+    match state {
+        State::FirstLineParsed => {
+            let text = markdown_unit[multiline_range.start]
+                .trim()
+                .trim_start_matches('-')
+                .trim();
+            let text = process_inline_formatting(text, configurator);
+            res += format!("\t<li><p>{}</p></li>\n", text).as_str();
+        }
+        State::MultilineElement => {
+            // end of multiline
+            let sub_doc = markdown_unit[multiline_range.clone()]
+                .iter()
+                .map(|x| x.chars().skip(2).collect::<String>())
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            let mut parser = Markdown2Html::new(sub_doc);
+            parser.configurator = configurator.clone();
+            parser.configurator.prologue = String::new();
+            parser.configurator.epilogue = String::new();
+
+            let html = parser.generate_html_single_threaded();
+            res += format!("\t<li>{}</li>\n", html).as_str();
+        }
+        _ => {}
+    }
+
     res += "</ul>";
     res
 }
@@ -643,10 +750,10 @@ mod tests {
 
     #[test]
     fn analyze_input() {
-        let input = std::fs::read_to_string("sample_data/code_test_input.md").unwrap();
+        let input = std::fs::read_to_string("sample_data/small_test_input.md").unwrap();
         let mut generator = Markdown2Html::new(input);
         generator.set_number_of_threads(1);
         let _res = generator.generate_html();
-        //println!("{}", _res);
+        println!("{}", _res);
     }
 }

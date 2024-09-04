@@ -4,8 +4,8 @@ use crate::Level;
 
 #[derive(Clone)]
 pub(crate) struct Configurator {
-    prologue: String,
-    epilogue: String,
+    pub(crate) prologue: String,
+    pub(crate) epilogue: String,
 
     image: String,
     link: String,

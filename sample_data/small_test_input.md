@@ -81,3 +81,38 @@ There is another similar but more efficient algorithm called the [Jump Flooding 
 - a
 - c
     - b
+
+## `std::bit_cast`
+
+This is something I have had a sick relationship with. I don't know why, but there were times when I needed to do some strange things like obtaining the bitwise representation of a `float` number. Of course, in my junior days, I used to not be afraid of UB (Undefined Behavior) and used anything that just seemed to work, at least here and for now. So, what options do we have for performing not really safe casting from one type to another?
+
+- `reinterpret_cast`, where would we be without it? It's so simple and tempting to write:
+  
+  ```cpp
+  uint32_t i = *reinterpret_cast<uint32_t*>(&f);
+  ```
+
+  and not worry about anything. But it's UB;
+
+- Back to basics — C-style cast. It's the same as `reinterpret_cast`, but even simpler to write:
+
+  ```cpp
+  uint32_t i = *(uint32_t*)&f;
+  ```
+
+  If the [developers of Quake III weren't afraid](https://en.wikipedia.org/wiki/Fast_inverse_square_root), why should we be? But... **it's UB**;
+
+- The trick with `union`:
+  ```cpp
+  union {
+      float f;
+      uint32_t i;
+  } value32;
+  ```
+  The code itself is not UB, but the problem is that reading from a union field into which you haven't written anything before is also UB.
+
+Nevertheless, I observed all these approaches in various types of deviations:
+
+- Attempting to determine the sign of a `float` number by reading its most significant bit.
+- Transforming a pointer into a number and back — hello embedded systems. I even saw an exotic case where an address was transformed into an ID.
+- Mathematical tricks with the exponent or mantissa of a `float`.
