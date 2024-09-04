@@ -29,9 +29,9 @@ impl Frontmatter {
             vars: HashMap::new(),
         };
 
-        res.parse(&whole_markdown[start_index + 3..end_index].trim());
+        res.parse(whole_markdown[start_index + 3..end_index].trim());
 
-        (Some(res), &whole_markdown[end_index + 3..].trim())
+        (Some(res), (whole_markdown[end_index + 3..].trim()))
     }
 
     // returns end index
@@ -52,7 +52,7 @@ impl Frontmatter {
                 }
             } else {
                 let line = line.trim();
-                Line::ListElement(Rc::from(line.strip_prefix("-").unwrap_or(line).trim()))
+                Line::ListElement(Rc::from(line.strip_prefix('-').unwrap_or(line).trim()))
             }
         });
 

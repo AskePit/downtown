@@ -200,7 +200,7 @@ impl Markdown2Html {
                     None
                 }
             })
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_else(String::new);
 
         let tags = frontmatter
             .as_ref()
@@ -212,7 +212,7 @@ impl Markdown2Html {
                     None
                 }
             })
-            .unwrap_or_else(|| vec![]);
+            .unwrap_or_else(Vec::new);
 
         let mut context = ParseContext {
             parse_units: vec![],
@@ -447,7 +447,7 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
                 multiline_range.start = i;
             }
             State::FirstLineParsed => {
-                if let Some(_) = line.strip_prefix(IDENT) {
+                if line.strip_prefix(IDENT).is_some() {
                     state = State::MultilineElement;
                     multiline_range.end = i + 1;
                 } else {
@@ -467,7 +467,7 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
                 }
             }
             State::MultilineElement => {
-                if let Some(_) = line.strip_prefix("  ") {
+                if line.strip_prefix("  ").is_some() {
                     multiline_range.end += 1;
                 } else {
                     // end of multiline
@@ -509,7 +509,7 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
         }
         State::MultilineElement => {
             // end of multiline
-            let sub_doc = markdown_unit[multiline_range.clone()]
+            let sub_doc = markdown_unit[multiline_range]
                 .iter()
                 .map(|x| x.chars().skip(2).collect::<String>())
                 .collect::<Vec<_>>()
