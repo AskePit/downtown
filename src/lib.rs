@@ -28,6 +28,7 @@ enum UnitType {
     Blockquote,
     HorizontalLine,
     LocalLink,
+    RawText, // e.x. for html tags
 }
 
 struct ParseContext {
@@ -277,6 +278,7 @@ impl Markdown2Html {
                 ("![[", UnitType::LocalLink),
                 ("![", UnitType::Image),
                 ("---", UnitType::HorizontalLine),
+                ("<", UnitType::RawText),
             ] {
                 if block.starts_with(pattern) {
                     context.unit_types.push(unit_type);
@@ -352,6 +354,7 @@ fn process_unit(
         UnitType::Code => process_code,
         UnitType::Blockquote => process_blockquote,
         UnitType::HorizontalLine => process_horizontal_line,
+        UnitType::RawText => process_raw_text,
         _ => process_text,
     };
 
@@ -445,6 +448,11 @@ fn process_blockquote(markdown_unit: ParseUnit, configurator: &Configurator) -> 
 fn process_horizontal_line(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
     configurator.process_horizontal_line()
+}
+
+fn process_raw_text(markdown_unit: ParseUnit, _configurator: &Configurator) -> String {
+    assert_eq!(markdown_unit.len(), 1);
+    markdown_unit.first().unwrap().trim().to_string()
 }
 
 fn process_inline_formatting(s: impl Into<String>, configurator: &Configurator) -> String {
