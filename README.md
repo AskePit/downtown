@@ -69,7 +69,6 @@ You can customize generation behaviour by specifying a `-c` flag with a path to 
 
 - Nested lists
 - Numeric lists
-- Raw HTML tags
 - Tables
 
 ## How many threads should I use?

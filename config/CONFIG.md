@@ -11,7 +11,7 @@ prologue = '''
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>Test page</title>
+    <title>{title}</title>
 </head>
 <body>
 '''
@@ -29,7 +29,7 @@ In the example above, if generator created for us a text like `<html><body><p>He
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>Test page</title>
+    <title></title>
 </head>
 <body>
 <p>Hello, World!</p>
