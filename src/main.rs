@@ -4,12 +4,9 @@ use downtown::Markdown2Html;
 use std::fs::DirEntry;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::{error::Error, fs};
+use std::{error::Error, fs, io};
 
-fn visit_dirs(
-    dir: &Path,
-    cb: &dyn Fn(&DirEntry) -> Result<(), Box<dyn Error>>,
-) -> Result<(), Box<dyn Error>> {
+fn visit_dirs(dir: &Path, cb: &dyn Fn(&DirEntry) -> io::Result<()>) -> io::Result<()> {
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
@@ -29,7 +26,7 @@ fn process_dir(
     output_name: String,
     config_path: Option<PathBuf>,
     number_of_threads: u8,
-) -> Result<(), Box<dyn Error>> {
+) -> io::Result<()> {
     visit_dirs(&dir, &|entry| {
         let input_path = entry.path();
         if input_path.is_file() {
@@ -55,7 +52,7 @@ fn process_file(
     output_path: PathBuf,
     config_path: Option<PathBuf>,
     number_of_threads: u8,
-) -> Result<(), Box<dyn Error>> {
+) -> io::Result<()> {
     let input = fs::read_to_string(input_path)?;
     let config = config_path.and_then(|x| fs::read_to_string(x).ok());
 

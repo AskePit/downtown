@@ -37,6 +37,7 @@ struct ParseContext {
     parse_units: Vec<ParseUnit>,
     unit_types: Vec<UnitType>,
     title: String,
+    #[allow(unused)]
     tags: Vec<String>,
 }
 
@@ -200,7 +201,7 @@ impl Markdown2Html {
                     None
                 }
             })
-            .unwrap_or_else(String::new);
+            .unwrap_or_default();
 
         let tags = frontmatter
             .as_ref()
@@ -212,7 +213,7 @@ impl Markdown2Html {
                     None
                 }
             })
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
 
         let mut context = ParseContext {
             parse_units: vec![],
