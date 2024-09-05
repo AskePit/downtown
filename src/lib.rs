@@ -456,7 +456,7 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
                         .trim_start_matches('-')
                         .trim();
                     let text = process_inline_formatting(text, configurator);
-                    res += format!("\t<li><p>{}</p></li>\n", text).as_str();
+                    res += format!("\t<li>{}</li>\n", text).as_str();
 
                     if line.starts_with("- ") {
                         state = State::NewElementStart;
@@ -505,7 +505,7 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
                 .trim_start_matches('-')
                 .trim();
             let text = process_inline_formatting(text, configurator);
-            res += format!("\t<li><p>{}</p></li>\n", text).as_str();
+            res += format!("\t<li>{}</li>\n", text).as_str();
         }
         State::MultilineElement => {
             // end of multiline
