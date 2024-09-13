@@ -82,8 +82,30 @@ impl Frontmatter {
         }
     }
 
-    pub(crate) fn get(&self, variable_name: &str) -> Option<&FrontmatterVar> {
-        self.vars.get(variable_name)
+    pub(crate) fn get_string(&self, variable_name: &str) -> String {
+        self.vars
+            .get(variable_name)
+            .and_then(|v| {
+                if let FrontmatterVar::String(s) = v {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn get_list(&self, variable_name: &str) -> Vec<String> {
+        self.vars
+            .get(variable_name)
+            .and_then(|v| {
+                if let FrontmatterVar::List(s) = v {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default()
     }
 }
 

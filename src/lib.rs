@@ -6,7 +6,7 @@ mod utils;
 
 use crate::code_highlighter::highlight_code;
 use crate::configurator::Configurator;
-use crate::frontmatter_parser::{Frontmatter, FrontmatterVar};
+use crate::frontmatter_parser::Frontmatter;
 use crate::utils::StrUtils;
 use std::cmp::PartialEq;
 use std::ops::Range;
@@ -191,35 +191,19 @@ impl Markdown2Html {
     }
 
     fn analyze_input(input: Vec<Block>, frontmatter: Option<Frontmatter>) -> ParseContext {
-        let title = frontmatter
-            .as_ref()
-            .and_then(|f| f.get("title"))
-            .and_then(|var| {
-                if let FrontmatterVar::String(title) = var {
-                    Some(title.clone())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_default();
-
-        let tags = frontmatter
-            .as_ref()
-            .and_then(|f| f.get("tags"))
-            .and_then(|var| {
-                if let FrontmatterVar::List(tags) = var {
-                    Some(tags.clone())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_default();
-
         let mut context = ParseContext {
             parse_units: vec![],
             unit_types: vec![],
-            title,
-            tags,
+            title: if let Some(frontmatter) = &frontmatter {
+                frontmatter.get_string("title")
+            } else {
+                String::new()
+            },
+            tags: if let Some(frontmatter) = &frontmatter {
+                frontmatter.get_list("tags")
+            } else {
+                vec![]
+            },
         };
 
         let mut h1_counter: usize = 0;
@@ -235,7 +219,7 @@ impl Markdown2Html {
                 match state_type {
                     UnitType::List => {
                         if block.starts_with("- ")
-                            || block.starts_with("  ")
+                            || block.starts_with(' ')
                             || block.trim().is_empty()
                         {
                             multiline_counter += 1;
@@ -416,23 +400,51 @@ fn process_header(level: Level, markdown_unit: ParseUnit, configurator: &Configu
     configurator.process_header(level, &text)
 }
 
+fn count_leading_spaces(s: &str) -> usize {
+    s.chars().take_while(|&c| c == ' ').count()
+}
+
 fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
     #[derive(PartialEq)]
     enum State {
         NewElementStart,
         FirstLineParsed,
-        MultilineElement,
+        MultilineElement(usize),
     }
 
-    const IDENT: &str = "  ";
-
     let mut res = "<ul>\n".to_owned();
-
     let mut state = State::NewElementStart;
-
     let mut multiline_range = 0usize..0usize;
-
     let mut i = 0usize;
+
+    let gen_one_line_html = |multiline_range: &Range<usize>| -> String {
+        let text = markdown_unit[multiline_range.start]
+            .trim()
+            .trim_start_matches('-')
+            .trim();
+        let text = process_inline_formatting(text, configurator);
+        format!("\t<li>{}</li>\n", text)
+    };
+
+    let gen_multi_line_html = |blocks: &[Block], ident: usize| -> String {
+        let sub_doc = blocks
+            .iter()
+            .enumerate()
+            .map(|(i, x)| {
+                let to_skip = if i == 0 { "- ".len() } else { ident };
+                x.chars().skip(to_skip).collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let mut parser = Markdown2Html::new(sub_doc);
+        parser.configurator = configurator.clone();
+        parser.configurator.prologue = String::new();
+        parser.configurator.epilogue = String::new();
+
+        let html = parser.generate_html_single_threaded();
+        format!("\t<li>{}</li>\n", html)
+    };
 
     while i < markdown_unit.len() {
         let line = &markdown_unit[i];
@@ -448,16 +460,12 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
                 multiline_range.start = i;
             }
             State::FirstLineParsed => {
-                if line.strip_prefix(IDENT).is_some() {
-                    state = State::MultilineElement;
+                if line.starts_with(' ') {
+                    let spaces = count_leading_spaces(line);
+                    state = State::MultilineElement(spaces);
                     multiline_range.end = i + 1;
                 } else {
-                    let text = markdown_unit[multiline_range.start]
-                        .trim()
-                        .trim_start_matches('-')
-                        .trim();
-                    let text = process_inline_formatting(text, configurator);
-                    res += format!("\t<li>{}</li>\n", text).as_str();
+                    res += &gen_one_line_html(&multiline_range);
 
                     if line.starts_with("- ") {
                         state = State::NewElementStart;
@@ -467,24 +475,12 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
                     }
                 }
             }
-            State::MultilineElement => {
-                if line.strip_prefix("  ").is_some() {
+            State::MultilineElement(ident) => {
+                if line.starts_with(&" ".repeat(ident)) {
                     multiline_range.end += 1;
                 } else {
                     // end of multiline
-                    let sub_doc = markdown_unit[multiline_range.clone()]
-                        .iter()
-                        .map(|x| x.chars().skip(2).collect::<String>())
-                        .collect::<Vec<_>>()
-                        .join("\n");
-
-                    let mut parser = Markdown2Html::new(sub_doc);
-                    parser.configurator = configurator.clone();
-                    parser.configurator.prologue = String::new();
-                    parser.configurator.epilogue = String::new();
-
-                    let html = parser.generate_html_single_threaded();
-                    res += format!("\t<li>{}</li>\n", html).as_str();
+                    res += &gen_multi_line_html(&markdown_unit[multiline_range.clone()], ident);
 
                     if line.starts_with("- ") {
                         state = State::NewElementStart;
@@ -501,28 +497,10 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
 
     match state {
         State::FirstLineParsed => {
-            let text = markdown_unit[multiline_range.start]
-                .trim()
-                .trim_start_matches('-')
-                .trim();
-            let text = process_inline_formatting(text, configurator);
-            res += format!("\t<li>{}</li>\n", text).as_str();
+            res += &gen_one_line_html(&multiline_range);
         }
-        State::MultilineElement => {
-            // end of multiline
-            let sub_doc = markdown_unit[multiline_range]
-                .iter()
-                .map(|x| x.chars().skip(2).collect::<String>())
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            let mut parser = Markdown2Html::new(sub_doc);
-            parser.configurator = configurator.clone();
-            parser.configurator.prologue = String::new();
-            parser.configurator.epilogue = String::new();
-
-            let html = parser.generate_html_single_threaded();
-            res += format!("\t<li>{}</li>\n", html).as_str();
+        State::MultilineElement(ident) => {
+            res += &gen_multi_line_html(&markdown_unit[multiline_range.clone()], ident);
         }
         _ => {}
     }

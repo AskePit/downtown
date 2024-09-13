@@ -81,7 +81,7 @@ There is another similar but more efficient algorithm called the [Jump Flooding 
 - a
 - c
     - b
-
+  
 ## `std::bit_cast`
 
 This is something I have had a sick relationship with. I don't know why, but there were times when I needed to do some strange things like obtaining the bitwise representation of a `float` number. Of course, in my junior days, I used to not be afraid of UB (Undefined Behavior) and used anything that just seemed to work, at least here and for now. So, what options do we have for performing not really safe casting from one type to another?
