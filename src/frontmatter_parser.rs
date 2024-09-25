@@ -138,37 +138,37 @@ areas:
 
         assert_eq!(markdown, "## In Work <!-- id: 0 -->");
         assert_eq!(
-            frontmatter.get("id"),
-            Some(&FrontmatterVar::String("2".to_string()))
+            frontmatter.get_string("id"),
+            "2".to_string()
         );
 
         assert_eq!(
-            frontmatter.get("kanban-plugin"),
-            Some(&FrontmatterVar::String("basic".to_string()))
+            frontmatter.get_string("kanban-plugin"),
+            "basic".to_string()
         );
 
         assert_eq!(
-            frontmatter.get("urgency"),
-            Some(&FrontmatterVar::String("urgent".to_string()))
+            frontmatter.get_string("urgency"),
+            "urgent".to_string()
         );
 
         assert_eq!(
-            frontmatter.get("interest"),
-            Some(&FrontmatterVar::String("normal".to_string()))
+            frontmatter.get_string("interest"),
+            "normal".to_string()
         );
 
         assert_eq!(
-            frontmatter.get("strategy"),
-            Some(&FrontmatterVar::String("urgent".to_string()))
+            frontmatter.get_string("strategy"),
+            "urgent".to_string()
         );
 
         assert_eq!(
-            frontmatter.get("areas"),
-            Some(&FrontmatterVar::List(vec![
+            frontmatter.get_list("areas"),
+            vec![
                 "projects".to_string(),
                 "career".to_string(),
                 "todos".to_string()
-            ]))
+            ]
         );
     }
 }
