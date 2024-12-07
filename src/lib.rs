@@ -639,9 +639,14 @@ fn process_symmetric_inline_pattern(
                     pattern_position + markdown_pattern.len()
                 };
 
-                let determine_char = text.chars().nth(determine_char_index).unwrap();
+                let determine_char = text.chars().nth(determine_char_index);
 
-                let pass = !determine_char.is_alphanumeric() && determine_char != '_';
+                let pass = if determine_char.is_some() {
+                    let determine_char = determine_char.unwrap();
+                    !determine_char.is_alphanumeric() && determine_char != '_'
+                } else {
+                    true
+                };
 
                 if !pass {
                     head = !head;
