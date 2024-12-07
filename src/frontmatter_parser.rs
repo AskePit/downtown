@@ -137,30 +137,15 @@ areas:
         let frontmatter = frontmatter.unwrap();
 
         assert_eq!(markdown, "## In Work <!-- id: 0 -->");
-        assert_eq!(
-            frontmatter.get_string("id"),
-            "2".to_string()
-        );
+        assert_eq!(frontmatter.get_string("id"), "2".to_string());
 
-        assert_eq!(
-            frontmatter.get_string("kanban-plugin"),
-            "basic".to_string()
-        );
+        assert_eq!(frontmatter.get_string("kanban-plugin"), "basic".to_string());
 
-        assert_eq!(
-            frontmatter.get_string("urgency"),
-            "urgent".to_string()
-        );
+        assert_eq!(frontmatter.get_string("urgency"), "urgent".to_string());
 
-        assert_eq!(
-            frontmatter.get_string("interest"),
-            "normal".to_string()
-        );
+        assert_eq!(frontmatter.get_string("interest"), "normal".to_string());
 
-        assert_eq!(
-            frontmatter.get_string("strategy"),
-            "urgent".to_string()
-        );
+        assert_eq!(frontmatter.get_string("strategy"), "urgent".to_string());
 
         assert_eq!(
             frontmatter.get_list("areas"),
