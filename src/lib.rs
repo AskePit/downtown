@@ -769,7 +769,7 @@ mod tests {
 
     #[test]
     fn analyze_input() {
-        let input = std::fs::read_to_string("sample_data/source.md").unwrap();
+        let input = std::fs::read_to_string("sample_data/small_test_input.md").unwrap();
         let mut generator = Markdown2Html::new(input);
         generator.set_number_of_threads(1);
         let _res = generator.generate_html();
