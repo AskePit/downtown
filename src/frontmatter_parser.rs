@@ -82,15 +82,16 @@ impl Frontmatter {
         }
     }
 
+    pub(crate) fn get_var_names(&self) -> Vec<String> {
+        self.vars.keys().cloned().collect()
+    }
+
     pub(crate) fn get_string(&self, variable_name: &str) -> String {
         self.vars
             .get(variable_name)
-            .and_then(|v| {
-                if let FrontmatterVar::String(s) = v {
-                    Some(s.clone())
-                } else {
-                    None
-                }
+            .map(|v| match v {
+                FrontmatterVar::String(s) => s.clone(),
+                FrontmatterVar::List(_) => self.get_list_joined(variable_name, ", "),
             })
             .unwrap_or_default()
     }
@@ -106,6 +107,10 @@ impl Frontmatter {
                 }
             })
             .unwrap_or_default()
+    }
+
+    pub(crate) fn get_list_joined(&self, variable_name: &str, separator: &str) -> String {
+        self.get_list(variable_name).join(separator)
     }
 }
 

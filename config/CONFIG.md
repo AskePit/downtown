@@ -11,7 +11,7 @@ prologue = '''
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>{title}</title>
+    <title>{{title}}</title>
 </head>
 <body>
 '''
@@ -39,7 +39,7 @@ In the example above, if generator created for us a text like `<html><body><p>He
 
 ---
 
-Remember that by default generator generates `<html><body>{text}</body></html>` content, so if you don't use configuration file, or it has empty `prologue` and `epilogue` variables then you'll get:
+Remember that by default generator generates `<html><body>{{text}}</body></html>` content, so if you don't use configuration file, or it has empty `prologue` and `epilogue` variables then you'll get:
 
 ```html
 <html>
@@ -55,21 +55,21 @@ If `prologue` variable is specified then default `<html><body>` will be replaced
 
 The section has a dozen of variables to fine-tune almost every element of generation:
 
-| Variable          | Parameters             | Default value                                            |
-| ----------------- | ---------------------- | -------------------------------------------------------- |
-| `image`           | `{src}`<br>`{caption}` | `<img src="{src}" alt="{caption}">`                      |
-| `link`            | `{src}`<br>`{caption}` | `<a href="{src}">{caption}</a>`                          |
-| `latex`           | `{text}`               | `<p class="latex">{text}</p>`                            |
-| `code`            | `{lang}`<br>`{text}`   | `<pre><code class="language-{lang}">{text}</code></pre>` |
-| `code-inline`     | `{text}`               | `<code>{text}</code>`                                    |
-| `blockquote`      | `{text}`               | `<blockquote>{text}</blockquote>`                        |
-| `horizontal_line` |                        | `<hr>`                                                   |
-| `paragraph`       | `{text}`               | `<p>{text}</p>`                                          |
-| `bold`            | `{text}`               | `<b>{text}</b>`                                          |
-| `italic`          | `{text}`               | `<i>{text}</i>`                                          |
-| `strikethrough`   | `{text}`               | `<s>{text}</s>`                                          |
-| `header`          | `{level}`<br>`{text}`  | `<h{level}>{text}</h{level}>`                            |
-| `error`           | `{text}`               | `<div class="parse-error">{text}</div>`                  |
+| Variable          | Parameters                 | Default value                                                |
+| ----------------- |----------------------------|--------------------------------------------------------------|
+| `image`           | `{{src}}`<br>`{{caption}}` | `<img src="{{src}}" alt="{{caption}}">`                      |
+| `link`            | `{{src}}`<br>`{{caption}}` | `<a href="{{src}}">{{caption}}</a>`                          |
+| `latex`           | `{{text}}`                 | `<p class="latex">{{text}}</p>`                              |
+| `code`            | `{{lang}}`<br>`{{text}}`   | `<pre><code class="language-{{lang}}">{{text}}</code></pre>` |
+| `code-inline`     | `{{text}}`                 | `<code>{{text}}</code>`                                      |
+| `blockquote`      | `{{text}}`                 | `<blockquote>{{text}}</blockquote>`                          |
+| `horizontal_line` |                            | `<hr>`                                                       |
+| `paragraph`       | `{{text}}`                 | `<p>{{text}}</p>`                                            |
+| `bold`            | `{{text}}`                 | `<b>{{text}}</b>`                                            |
+| `italic`          | `{{text}}`                 | `<i>{{text}}</i>`                                            |
+| `strikethrough`   | `{{text}}`                 | `<s>{{text}}</s>`                                            |
+| `header`          | `{{level}}`<br>`{{text}}`  | `<h{{level}}>{{text}}</h{{level}}>`                          |
+| `error`           | `{{text}}`                 | `<div class="parse-error">{{text}}</div>`                    |
 
 ## Examples
 

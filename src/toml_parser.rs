@@ -127,27 +127,27 @@ epilogue = '''
 image = '''
 <div class="image">
     <figure>
-        <img src="{src}" alt="{caption}">
-        <figcaption>{caption}</figcaption>
+        <img src="{{src}}" alt="{{caption}}">
+        <figcaption>{{caption}}</figcaption>
     </figure>
 </div>
 '''
 
-link = '<b><a href="{src}">{caption}</a></b>'
-latex = '<p class="latex">{text}</p>'
-code = '<pre><code class="language-{lang}">{text}</code></pre>'
-blockquote = '<div class="blockquote">{text}</div>'
+link = '<b><a href="{{src}}">{{caption}}</a></b>'
+latex = '<p class="latex">{{text}}</p>'
+code = '<pre><code class="language-{{lang}}">{{text}}</code></pre>'
+blockquote = '<div class="blockquote">{{text}}</div>'
 horizontal_line = '<hr><hr>'
-paragraph = '<p class="paragraph">{text}</p>'
-bold = '<strong>{text}</strong>'
-italic = '<em>{text}</em>'
-strikethrough = '<del>{text}</del>'
-code-inline = '<code>{text}</code>'
+paragraph = '<p class="paragraph">{{text}}</p>'
+bold = '<strong>{{text}}</strong>'
+italic = '<em>{{text}}</em>'
+strikethrough = '<del>{{text}}</del>'
+code-inline = '<code>{{text}}</code>'
 
-header = '<div class="h{level}">{text}</div>'
-header3 = '<div class="special-header">{text}</div>'
+header = '<div class="h{{level}">{{text}}</div>'
+header3 = '<div class="special-header">{{text}}</div>'
 
-error = '<div class="parse-error">{text}</div>'
+error = '<div class="parse-error">{{text}}</div>'
     "#;
 
         let mut parser = TomlDoc::new(toml_content);
@@ -155,7 +155,7 @@ error = '<div class="parse-error">{text}</div>'
 
         assert_eq!(
             *parser.get("tags", "paragraph").unwrap(),
-            r#"<p class="paragraph">{text}</p>"#
+            r#"<p class="paragraph">{{text}}</p>"#
         );
         assert_eq!(
             *parser.get("page", "epilogue").unwrap(),
@@ -163,11 +163,11 @@ error = '<div class="parse-error">{text}</div>'
         );
         assert_eq!(
             *parser.get("tags", "header3").unwrap(),
-            r#"<div class="special-header">{text}</div>"#
+            r#"<div class="special-header">{{text}}</div>"#
         );
         assert_eq!(
             *parser.get("tags", "code-inline").unwrap(),
-            "<code>{text}</code>".to_owned()
+            "<code>{{text}}</code>".to_owned()
         );
 
         assert_eq!(parser.get("page", "epilog"), None);

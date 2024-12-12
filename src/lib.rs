@@ -36,9 +36,8 @@ enum UnitType {
 struct ParseContext {
     parse_units: Vec<ParseUnit>,
     unit_types: Vec<UnitType>,
+    frontmatter: Option<Frontmatter>,
     title: String,
-    #[allow(unused)]
-    tags: Vec<String>,
 }
 
 pub struct Markdown2Html {
@@ -117,7 +116,7 @@ impl Markdown2Html {
 
         let html_body = output_vec.join("\n");
         self.configurator
-            .frame_page(&self.parse_context.title, html_body)
+            .frame_page(&self.parse_context.frontmatter, html_body)
     }
 
     fn generate_html_multi_threaded(&self, number_of_threads: u8) -> String {
@@ -187,7 +186,7 @@ impl Markdown2Html {
 
         let html_body = final_output.join("\n");
         self.configurator
-            .frame_page(&self.parse_context.title, html_body)
+            .frame_page(&self.parse_context.frontmatter, html_body)
     }
 
     fn analyze_input(input: Vec<Block>, frontmatter: Option<Frontmatter>) -> ParseContext {
@@ -199,11 +198,7 @@ impl Markdown2Html {
             } else {
                 String::new()
             },
-            tags: if let Some(frontmatter) = &frontmatter {
-                frontmatter.get_list("tags")
-            } else {
-                vec![]
-            },
+            frontmatter,
         };
 
         let mut h1_counter: usize = 0;

@@ -18,25 +18,25 @@ epilogue = '''
 image = '''
 <div class="image">
     <figure>
-        <img src="{src}" alt="{caption}">
-        <figcaption>{caption}</figcaption>
+        <img src="{{src}}" alt="{{caption}}">
+        <figcaption>{{caption}}</figcaption>
     </figure>
 </div>
 '''
 
-link = '<b><a href="{src}">{caption}</a></b>'
+link = '<b><a href="{{src}}">{{caption}}</a></b>'
 
-latex = '<p class="latex">{text}</p>'
-code = '<pre><code class="language-{lang}">{text}</code></pre>'
-blockquote = '<div class="blockquote">{text}</div>'
+latex = '<p class="latex">{{text}}</p>'
+code = '<pre><code class="language-{{lang}}">{{text}}</code></pre>'
+blockquote = '<div class="blockquote">{{text}}</div>'
 horizontal-line = '<hr><hr>'
-paragraph = '<p class="paragraph">{text}</p>'
-bold = '<strong>{text}</strong>'
-italic = '<em>{text}</em>'
-strikethrough = '<del>{text}</del>'
-code-inline = '<code>{text}</code>'
+paragraph = '<p class="paragraph">{{text}}</p>'
+bold = '<strong>{{text}}</strong>'
+italic = '<em>{{text}}</em>'
+strikethrough = '<del>{{text}}</del>'
+code-inline = '<code>{{text}}</code>'
 
-header = '<div class="h{level}">{text}</div>'
-header3 = '<div class="special-header">{text}</div>'
+header = '<div class="h{{level}}">{{text}}</div>'
+header3 = '<div class="special-header">{{text}}</div>'
 
-error = '<div class="parse-error">{text}</div>'
+error = '<div class="parse-error">{{text}}</div>'

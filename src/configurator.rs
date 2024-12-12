@@ -1,3 +1,4 @@
+use crate::frontmatter_parser::Frontmatter;
 use crate::toml_parser::TomlDoc;
 use crate::utils::StrUtils;
 use crate::Level;
@@ -34,26 +35,26 @@ impl Default for Configurator {
         Self {
             prologue: "<html>\n<body>\n".to_string(),
             epilogue: "\n</body>\n</html>".to_string(),
-            image: r#"<img src="{src}" alt="{caption}">"#.to_string(),
-            link: r#"<a href="{src}">{caption}</a>"#.to_string(),
-            latex: r#"<p class="latex">{text}</p>"#.to_string(),
-            code: r#"<pre><code class="language-{lang}">{text}</code></pre>"#.to_string(),
-            code_inline: r#"<code>{text}</code>"#.to_string(),
-            blockquote: r#"<blockquote>{text}</blockquote>"#.to_string(),
+            image: r#"<img src="{{src}}" alt="{{caption}}">"#.to_string(),
+            link: r#"<a href="{{src}}">{{caption}}</a>"#.to_string(),
+            latex: r#"<p class="latex">{{text}}</p>"#.to_string(),
+            code: r#"<pre><code class="language-{{lang}}">{{text}}</code></pre>"#.to_string(),
+            code_inline: r#"<code>{{text}}</code>"#.to_string(),
+            blockquote: r#"<blockquote>{{text}}</blockquote>"#.to_string(),
             horizontal_line: "<hr>".to_string(),
-            paragraph: "<p>{text}</p>".to_string(),
-            bold: "<b>{text}</b>".to_string(),
-            italic: "<i>{text}</i>".to_string(),
-            italic_bold: "<b><i>{text}</i></b>".to_string(),
-            strikethrough: "<s>{text}</s>".to_string(),
-            header: "<h{level}>{text}</h{level}>".to_string(),
+            paragraph: "<p>{{text}}</p>".to_string(),
+            bold: "<b>{{text}}</b>".to_string(),
+            italic: "<i>{{text}}</i>".to_string(),
+            italic_bold: "<b><i>{{text}}</i></b>".to_string(),
+            strikethrough: "<s>{{text}}</s>".to_string(),
+            header: "<h{{level}}>{{text}}</h{{level}}>".to_string(),
             header1: None,
             header2: None,
             header3: None,
             header4: None,
             header5: None,
             header6: None,
-            error: r#"<div class="parse-error">{text}</div>"#.to_string(),
+            error: r#"<div class="parse-error">{{text}}</div>"#.to_string(),
         }
     }
 }
@@ -156,12 +157,25 @@ impl Configurator {
         }
     }
 
-    pub fn frame_page(&self, title: &str, page: String) -> String {
-        self.prologue.better_replace("{title}", title) + &page + &self.epilogue
+    pub fn frame_page(&self, frontmatter: &Option<Frontmatter>, page: String) -> String {
+        if let Some(frontmatter) = frontmatter {
+            let mut prologue = self.prologue.clone();
+            let mut epilogue = self.epilogue.clone();
+
+            for key in frontmatter.get_var_names() {
+                let value = frontmatter.get_string(&key);
+                prologue = prologue.better_replace(&format!("{{{{{}}}}}", key), &value);
+                epilogue = epilogue.better_replace(&format!("{{{{{}}}}}", key), &value);
+            }
+
+            prologue + &page + &epilogue
+        } else {
+            self.prologue.clone() + &page + &self.epilogue
+        }
     }
 
     pub fn process_paragraph(&self, text: &str) -> String {
-        self.paragraph.better_replace("{text}", text)
+        self.paragraph.better_replace("{{text}}", text)
     }
 
     pub fn process_header(&self, level: Level, text: &str) -> String {
@@ -176,19 +190,19 @@ impl Configurator {
             if let Some(h) = h {
                 if level == l {
                     return h
-                        .better_replace("{text}", text)
-                        .better_replace("{level}", &level.to_string());
+                        .better_replace("{{text}}", text)
+                        .better_replace("{{level}}", &level.to_string());
                 }
             }
         }
 
         self.header
-            .better_replace("{text}", text)
-            .better_replace("{level}", &level.to_string())
+            .better_replace("{{text}}", text)
+            .better_replace("{{level}}", &level.to_string())
     }
 
     pub fn process_blockquote(&self, text: &str) -> String {
-        self.blockquote.better_replace("{text}", text)
+        self.blockquote.better_replace("{{text}}", text)
     }
 
     pub fn process_horizontal_line(&self) -> String {
@@ -197,47 +211,47 @@ impl Configurator {
 
     pub fn process_image(&self, src: &str, caption: &str) -> String {
         self.image
-            .better_replace("{caption}", caption)
-            .better_replace("{src}", src)
+            .better_replace("{{caption}}", caption)
+            .better_replace("{{src}}", src)
     }
 
     pub fn process_link(&self, src: &str, caption: &str) -> String {
         self.link
-            .better_replace("{caption}", caption)
-            .better_replace("{src}", src)
+            .better_replace("{{caption}}", caption)
+            .better_replace("{{src}}", src)
     }
 
     pub fn process_latex(&self, text: &str) -> String {
-        self.latex.better_replace("{text}", text)
+        self.latex.better_replace("{{text}}", text)
     }
 
     pub fn process_code(&self, lang: &str, text: &str) -> String {
         self.code
-            .better_replace("{lang}", lang)
-            .better_replace("{text}", text)
+            .better_replace("{{lang}}", lang)
+            .better_replace("{{text}}", text)
     }
 
     pub fn process_code_inline(&self, text: &str) -> String {
-        self.code_inline.better_replace("{text}", text)
+        self.code_inline.better_replace("{{text}}", text)
     }
 
     pub fn process_bold(&self, text: &str) -> String {
-        self.bold.better_replace("{text}", text)
+        self.bold.better_replace("{{text}}", text)
     }
 
     pub fn process_italic(&self, text: &str) -> String {
-        self.italic.better_replace("{text}", text)
+        self.italic.better_replace("{{text}}", text)
     }
 
     pub fn process_italic_bold(&self, text: &str) -> String {
-        self.italic_bold.better_replace("{text}", text)
+        self.italic_bold.better_replace("{{text}}", text)
     }
 
     pub fn process_strikethrough(&self, text: &str) -> String {
-        self.strikethrough.better_replace("{text}", text)
+        self.strikethrough.better_replace("{{text}}", text)
     }
 
     pub fn process_error(&self, text: &str) -> String {
-        self.error.better_replace("{text}", text)
+        self.error.better_replace("{{text}}", text)
     }
 }
