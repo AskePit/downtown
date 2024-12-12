@@ -210,6 +210,7 @@ impl Markdown2Html {
 
         let mut multiline_state = false;
         let mut multiline_counter: usize = 0;
+        let mut pattern_size: usize = 0;
 
         let mut block_start: usize = 0;
 
@@ -256,7 +257,7 @@ impl Markdown2Html {
                     UnitType::Code => {
                         multiline_counter += 1;
 
-                        if block.starts_with("```") {
+                        if count_leading_chars(block, '`') == pattern_size {
                             context.parse_units.push(Arc::from(
                                 &input[block_start..block_start + multiline_counter],
                             ));
@@ -281,6 +282,9 @@ impl Markdown2Html {
                     multiline_state = true;
                     multiline_counter = 1;
                     block_start = i;
+                    if unit_type == UnitType::Code {
+                        pattern_size = count_leading_chars(block, '`');
+                    }
                     continue 'outer;
                 }
             }
@@ -400,8 +404,8 @@ fn process_header(level: Level, markdown_unit: ParseUnit, configurator: &Configu
     configurator.process_header(level, &text)
 }
 
-fn count_leading_spaces(s: &str) -> usize {
-    s.chars().take_while(|&c| c == ' ').count()
+fn count_leading_chars(s: &str, c: char) -> usize {
+    s.chars().take_while(|&ch| ch == c).count()
 }
 
 fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
@@ -461,7 +465,7 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
             }
             State::FirstLineParsed => {
                 if line.starts_with(' ') {
-                    let spaces = count_leading_spaces(line);
+                    let spaces = count_leading_chars(line, ' ');
                     state = State::MultilineElement(spaces);
                     multiline_range.end = i + 1;
                 } else {
@@ -765,7 +769,7 @@ mod tests {
 
     #[test]
     fn analyze_input() {
-        let input = std::fs::read_to_string("sample_data/small_test_input.md").unwrap();
+        let input = std::fs::read_to_string("sample_data/source.md").unwrap();
         let mut generator = Markdown2Html::new(input);
         generator.set_number_of_threads(1);
         let _res = generator.generate_html();
