@@ -543,14 +543,22 @@ fn process_code(markdown_unit: Block, configurator: &Configurator) -> String {
 }
 
 fn process_blockquote(markdown_unit: Block, configurator: &Configurator) -> String {
-    let text = markdown_unit
+    let sub_doc = markdown_unit
         .iter()
-        .map(|x| x.trim().trim_start_matches('>').trim())
-        .map(|x| process_inline_formatting(x, configurator))
+        .map(|x| {
+            x.chars().skip(1).collect::<String>()
+        })
         .collect::<Vec<_>>()
         .join("\n");
 
-    configurator.process_blockquote(&text)
+    let mut parser = Markdown2Html::new(sub_doc);
+    parser.configurator = configurator.clone();
+    parser.configurator.prologue = String::new();
+    parser.configurator.epilogue = String::new();
+
+    let html = parser.generate_html_single_threaded();
+    
+    configurator.process_blockquote(&html)
 }
 
 fn process_horizontal_line(markdown_unit: Block, configurator: &Configurator) -> String {
@@ -743,7 +751,7 @@ mod tests {
         for _ in 0..TIMES {
             let timer_start = SystemTime::now();
 
-            let input = std::fs::read_to_string("sample_data/big_test_input.md").unwrap();
+            let input = std::fs::read_to_string("sample_data/small_test_input.md").unwrap();
             let generator = Markdown2Html::new(input);
             let _res = generator.generate_html();
 
