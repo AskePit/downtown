@@ -13,9 +13,9 @@ use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-type Block = Arc<str>;
-type BlocksSlice = Arc<[Block]>;
-type ParseUnit = BlocksSlice;
+type Line = Arc<str>;
+type LinesSlice = Arc<[Line]>;
+type Block = LinesSlice;
 
 type Level = u8;
 
@@ -34,7 +34,7 @@ enum UnitType {
 }
 
 struct ParseContext {
-    parse_units: Vec<ParseUnit>,
+    parse_units: Vec<Block>,
     unit_types: Vec<UnitType>,
     frontmatter: Option<Frontmatter>,
     title: String,
@@ -189,7 +189,7 @@ impl Markdown2Html {
             .frame_page(&self.parse_context.frontmatter, html_body)
     }
 
-    fn analyze_input(input: Vec<Block>, frontmatter: Option<Frontmatter>) -> ParseContext {
+    fn analyze_input(input: Vec<Line>, frontmatter: Option<Frontmatter>) -> ParseContext {
         let mut context = ParseContext {
             parse_units: vec![],
             unit_types: vec![],
@@ -207,33 +207,31 @@ impl Markdown2Html {
         let mut multiline_counter: usize = 0;
         let mut pattern_size: usize = 0;
 
-        let mut block_start: usize = 0;
+        let mut line_start: usize = 0;
 
-        'outer: for (i, block) in input.iter().enumerate() {
+        'outer: for (i, line) in input.iter().enumerate() {
             if multiline_state {
                 let state_type = context.unit_types.last().unwrap();
                 match state_type {
                     UnitType::List => {
-                        if block.starts_with("- ")
-                            || block.starts_with(' ')
-                            || block.trim().is_empty()
+                        if line.starts_with("- ") || line.starts_with(' ') || line.trim().is_empty()
                         {
                             multiline_counter += 1;
                             continue;
                         } else {
                             context.parse_units.push(Arc::from(
-                                &input[block_start..block_start + multiline_counter],
+                                &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
                         }
                     }
                     UnitType::Blockquote => {
-                        if block.starts_with('>') {
+                        if line.starts_with('>') {
                             multiline_counter += 1;
                             continue;
                         } else {
                             context.parse_units.push(Arc::from(
-                                &input[block_start..block_start + multiline_counter],
+                                &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
                         }
@@ -241,9 +239,9 @@ impl Markdown2Html {
                     UnitType::Latex => {
                         multiline_counter += 1;
 
-                        if block.starts_with("$$") {
+                        if line.starts_with("$$") {
                             context.parse_units.push(Arc::from(
-                                &input[block_start..block_start + multiline_counter],
+                                &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
                         }
@@ -252,9 +250,9 @@ impl Markdown2Html {
                     UnitType::Code => {
                         multiline_counter += 1;
 
-                        if count_leading_chars(block, '`') == pattern_size {
+                        if count_leading_chars(line, '`') == pattern_size {
                             context.parse_units.push(Arc::from(
-                                &input[block_start..block_start + multiline_counter],
+                                &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
                         }
@@ -272,13 +270,13 @@ impl Markdown2Html {
                 ("```", UnitType::Code),
                 (">", UnitType::Blockquote),
             ] {
-                if block.starts_with(pattern) {
+                if line.starts_with(pattern) {
                     context.unit_types.push(unit_type);
                     multiline_state = true;
                     multiline_counter = 1;
-                    block_start = i;
+                    line_start = i;
                     if unit_type == UnitType::Code {
-                        pattern_size = count_leading_chars(block, '`');
+                        pattern_size = count_leading_chars(line, '`');
                     }
                     continue 'outer;
                 }
@@ -297,7 +295,7 @@ impl Markdown2Html {
                 ("---", UnitType::HorizontalLine),
                 ("<", UnitType::RawText),
             ] {
-                if block.starts_with(pattern) {
+                if line.starts_with(pattern) {
                     context.unit_types.push(unit_type);
                     context.parse_units.push(Arc::from(&input[i..i + 1]));
 
@@ -318,7 +316,7 @@ impl Markdown2Html {
             let state_type = *context.unit_types.last().unwrap();
             if state_type == UnitType::List || state_type == UnitType::Blockquote {
                 context.parse_units.push(Arc::from(
-                    &input[block_start..block_start + multiline_counter],
+                    &input[line_start..line_start + multiline_counter],
                 ));
             }
         }
@@ -344,9 +342,7 @@ impl Markdown2Html {
             context.unit_types.insert(0, UnitType::Header(1));
             context.parse_units.insert(
                 0,
-                ParseUnit::from(
-                    vec![Block::from(format!("# {}", context.title))].into_boxed_slice(),
-                ),
+                Block::from(vec![Line::from(format!("# {}", context.title))].into_boxed_slice()),
             );
         }
 
@@ -354,11 +350,7 @@ impl Markdown2Html {
     }
 }
 
-fn process_unit(
-    markdown_unit: ParseUnit,
-    unit_type: UnitType,
-    configurator: &Configurator,
-) -> String {
+fn process_unit(markdown_unit: Block, unit_type: UnitType, configurator: &Configurator) -> String {
     if let UnitType::Header(level) = unit_type {
         return process_header(level, markdown_unit, configurator);
     }
@@ -379,7 +371,7 @@ fn process_unit(
     f(markdown_unit, configurator)
 }
 
-fn process_text(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_text(markdown_unit: Block, configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
 
     let text = markdown_unit.first().unwrap().trim();
@@ -387,7 +379,7 @@ fn process_text(markdown_unit: ParseUnit, configurator: &Configurator) -> String
     configurator.process_paragraph(&text)
 }
 
-fn process_header(level: Level, markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_header(level: Level, markdown_unit: Block, configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
 
     let text = markdown_unit
@@ -403,7 +395,7 @@ fn count_leading_chars(s: &str, c: char) -> usize {
     s.chars().take_while(|&ch| ch == c).count()
 }
 
-fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_list(markdown_unit: Block, configurator: &Configurator) -> String {
     #[derive(PartialEq)]
     enum State {
         NewElementStart,
@@ -425,8 +417,8 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
         format!("\t<li>{}</li>\n", text)
     };
 
-    let gen_multi_line_html = |blocks: &[Block], ident: usize| -> String {
-        let sub_doc = blocks
+    let gen_multi_line_html = |lines: &[Line], ident: usize| -> String {
+        let sub_doc = lines
             .iter()
             .enumerate()
             .map(|(i, x)| {
@@ -508,7 +500,7 @@ fn process_list(markdown_unit: ParseUnit, configurator: &Configurator) -> String
     res
 }
 
-fn process_image(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_image(markdown_unit: Block, configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
 
     let text = markdown_unit.first().unwrap().trim();
@@ -519,7 +511,7 @@ fn process_image(markdown_unit: ParseUnit, configurator: &Configurator) -> Strin
     configurator.process_image(src, &caption)
 }
 
-fn process_local_link(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_local_link(markdown_unit: Block, configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
     let text = markdown_unit.first().unwrap().trim();
     insert_error_element(text, configurator)
@@ -529,12 +521,12 @@ fn insert_error_element(error_text: &str, configurator: &Configurator) -> String
     configurator.process_error(error_text)
 }
 
-fn process_latex(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_latex(markdown_unit: Block, configurator: &Configurator) -> String {
     let text = markdown_unit.join("\n");
     configurator.process_latex(&text)
 }
 
-fn process_code(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_code(markdown_unit: Block, configurator: &Configurator) -> String {
     assert!(markdown_unit.len() >= 2);
 
     let lang = markdown_unit
@@ -550,7 +542,7 @@ fn process_code(markdown_unit: ParseUnit, configurator: &Configurator) -> String
     configurator.process_code(&lang, &code)
 }
 
-fn process_blockquote(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_blockquote(markdown_unit: Block, configurator: &Configurator) -> String {
     let text = markdown_unit
         .iter()
         .map(|x| x.trim().trim_start_matches('>').trim())
@@ -561,12 +553,12 @@ fn process_blockquote(markdown_unit: ParseUnit, configurator: &Configurator) -> 
     configurator.process_blockquote(&text)
 }
 
-fn process_horizontal_line(markdown_unit: ParseUnit, configurator: &Configurator) -> String {
+fn process_horizontal_line(markdown_unit: Block, configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
     configurator.process_horizontal_line()
 }
 
-fn process_raw_text(markdown_unit: ParseUnit, _configurator: &Configurator) -> String {
+fn process_raw_text(markdown_unit: Block, _configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
     markdown_unit.first().unwrap().trim().to_string()
 }
