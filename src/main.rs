@@ -32,7 +32,13 @@ fn process_dir(
         if input_path.is_file() {
             if let Some(ext) = input_path.extension() {
                 if ext == "md" {
-                    let output_path = input_path.parent().unwrap().join(&output_name);
+                    let output_path = if output_name.contains("*") {
+                        let file_stem = input_path.file_stem().unwrap().to_str().unwrap();
+                        let resolved_name = output_name.replace("*", file_stem);
+                        input_path.parent().unwrap().join(&resolved_name)
+                    } else {
+                        input_path.parent().unwrap().join(&output_name)
+                    };
 
                     process_file(
                         input_path,
