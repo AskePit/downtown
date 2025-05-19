@@ -394,12 +394,12 @@ fn parse_code(
         }
         // Check for keywords
         else if remainder.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
-            let mut end = 0;
-            while end < remainder.len()
-                && remainder[end..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
-            {
-                end += 1;
-            }
+            let end = remainder
+                .char_indices()
+                .take_while(|&(_, c)| c.is_alphanumeric() || c == '_')
+                .map(|(_, c)| c.len_utf8())
+                .sum::<usize>();
+
             let word = &remainder[..end];
             if keywords.contains(word) {
                 highlights.push(HighlightData::new(HighlightClass::Keyword, i, i + end));
