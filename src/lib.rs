@@ -545,9 +545,7 @@ fn process_code(markdown_unit: Block, configurator: &Configurator) -> String {
 fn process_blockquote(markdown_unit: Block, configurator: &Configurator) -> String {
     let sub_doc = markdown_unit
         .iter()
-        .map(|x| {
-            x.chars().skip(1).collect::<String>()
-        })
+        .map(|x| x.chars().skip(1).collect::<String>())
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -557,7 +555,7 @@ fn process_blockquote(markdown_unit: Block, configurator: &Configurator) -> Stri
     parser.configurator.epilogue = String::new();
 
     let html = parser.generate_html_single_threaded();
-    
+
     configurator.process_blockquote(&html)
 }
 
