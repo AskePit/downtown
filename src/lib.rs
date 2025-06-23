@@ -10,7 +10,7 @@ use crate::frontmatter_parser::Frontmatter;
 use crate::utils::StrUtils;
 use std::cmp::PartialEq;
 use std::ops::Range;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 
 type Line = Arc<str>;
@@ -134,57 +134,32 @@ impl Markdown2Html {
 
         let chunk_size = (units_size + number_of_threads - 1) / number_of_threads; // Calculate chunk size
 
-        // Wrap each output element in Arc<Mutex<String>> for thread-safe mutability
-        let output_vec: Arc<Vec<Arc<Mutex<String>>>> = Arc::new(
-            (0..units_size)
-                .map(|_| Arc::new(Mutex::new(String::new())))
-                .collect(),
-        );
+        let mut output_vec: Vec<String> = (0..units_size).map(|_| String::new()).collect();
 
-        let mut handles = vec![];
+        thread::scope(|scope| {
+            let unit_chunks = parse_units.chunks(chunk_size);
+            let type_chunks = unit_types.chunks(chunk_size);
+            let output_chunks = output_vec.chunks_mut(chunk_size);
 
-        for thread_index in 0..number_of_threads {
-            fn get_chunk<T: Clone>(el: &[T], chunk_start: usize, chunk_size: usize) -> Vec<T> {
-                el.iter()
-                    .skip(chunk_start)
-                    .take(chunk_size)
-                    .cloned()
-                    .collect::<Vec<_>>()
+            for (unit_chunk, type_chunk, output_chunk) in unit_chunks
+                .zip(type_chunks)
+                .zip(output_chunks)
+                .map(|((a, b), c)| (a, b, c))
+            {
+                let configurator = self.configurator.clone();
+
+                scope.spawn(move || {
+                    for (item, (unit_type, output)) in unit_chunk
+                        .iter()
+                        .zip(type_chunk.iter().zip(output_chunk.iter_mut()))
+                    {
+                        *output = process_unit(item.clone(), *unit_type, &configurator);
+                    }
+                });
             }
+        });
 
-            let chunk_start = thread_index * chunk_size;
-
-            let input_chunk = get_chunk(parse_units, chunk_start, chunk_size);
-            let unit_types_chunk = get_chunk(unit_types, chunk_start, chunk_size);
-            let output_chunk = get_chunk(&output_vec, chunk_start, chunk_size);
-
-            let configurator = self.configurator.clone();
-
-            let handle = thread::spawn(move || {
-                for (item, (unit_type, output)) in input_chunk
-                    .into_iter()
-                    .zip(unit_types_chunk.into_iter().zip(output_chunk))
-                {
-                    let mut output = output.lock().unwrap();
-                    *output = process_unit(item.clone(), unit_type, &configurator);
-                }
-            });
-
-            handles.push(handle);
-        }
-
-        // Wait for all threads to finish
-        for handle in handles {
-            handle.join().unwrap();
-        }
-
-        let final_output: Vec<String> = Arc::try_unwrap(output_vec)
-            .unwrap()
-            .into_iter()
-            .map(|cell| Arc::try_unwrap(cell).unwrap().into_inner().unwrap())
-            .collect();
-
-        let html_body = final_output.join("\n");
+        let html_body = output_vec.join("\n");
         self.configurator
             .frame_page(&self.parsed_data.frontmatter, html_body)
     }
@@ -762,10 +737,16 @@ mod tests {
 
     #[test]
     fn analyze_input() {
-        let input = std::fs::read_to_string("sample_data/small_test_input.md").unwrap();
-        let mut generator = Markdown2Html::new(input);
-        generator.set_number_of_threads(1);
-        let _res = generator.generate_html();
-        println!("{}", _res);
+        for file in vec![
+            "sample_data/small_test_input.md",
+            "sample_data/big_test_input.md",
+            "sample_data/code_test_input.md",
+        ] {
+            let input = std::fs::read_to_string(file).unwrap();
+            let mut generator = Markdown2Html::new(input);
+            generator.set_number_of_threads(16);
+            let _res = generator.generate_html();
+            println!("{}", _res);
+        }
     }
 }
