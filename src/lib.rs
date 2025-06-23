@@ -33,15 +33,15 @@ enum UnitType {
     RawText, // e.x. for html tags
 }
 
-struct ParseContext {
-    parse_units: Vec<Block>,
+struct ParsedData {
+    units: Vec<Block>,
     unit_types: Vec<UnitType>,
     frontmatter: Option<Frontmatter>,
     title: String,
 }
 
 pub struct Markdown2Html {
-    parse_context: ParseContext,
+    parsed_data: ParsedData,
     number_of_threads: u8,
     configurator: Configurator,
 }
@@ -51,10 +51,10 @@ impl Markdown2Html {
         let (frontmatter, markdown) = Frontmatter::load(&input);
         let markdown: Vec<_> = markdown.lines().map(|x| Arc::from(x.trim_end())).collect();
 
-        let parse_context = Markdown2Html::analyze_input(markdown, frontmatter);
+        let parse_context = Markdown2Html::parse(markdown, frontmatter);
 
         Markdown2Html {
-            parse_context,
+            parsed_data: parse_context,
             number_of_threads: 0,
             configurator: Default::default(),
         }
@@ -68,10 +68,10 @@ impl Markdown2Html {
         let (frontmatter, markdown) = Frontmatter::load(&input);
         let markdown: Vec<_> = markdown.lines().map(|x| Arc::from(x.trim_end())).collect();
 
-        let parse_context = Markdown2Html::analyze_input(markdown, frontmatter);
+        let parse_context = Markdown2Html::parse(markdown, frontmatter);
 
         Markdown2Html {
-            parse_context,
+            parsed_data: parse_context,
             number_of_threads,
             configurator: if let Some(config_toml) = config_toml {
                 Configurator::new(config_toml)
@@ -101,8 +101,8 @@ impl Markdown2Html {
     }
 
     fn generate_html_single_threaded(&self) -> String {
-        let parse_units = &self.parse_context.parse_units;
-        let unit_types = &self.parse_context.unit_types;
+        let parse_units = &self.parsed_data.units;
+        let unit_types = &self.parsed_data.unit_types;
         let units_size = parse_units.len();
 
         let mut output_vec = vec!["".to_owned(); units_size];
@@ -116,7 +116,7 @@ impl Markdown2Html {
 
         let html_body = output_vec.join("\n");
         self.configurator
-            .frame_page(&self.parse_context.frontmatter, html_body)
+            .frame_page(&self.parsed_data.frontmatter, html_body)
     }
 
     fn generate_html_multi_threaded(&self, number_of_threads: u8) -> String {
@@ -128,8 +128,8 @@ impl Markdown2Html {
             number_of_threads as usize
         };
 
-        let parse_units = &self.parse_context.parse_units;
-        let unit_types = &self.parse_context.unit_types;
+        let parse_units = &self.parsed_data.units;
+        let unit_types = &self.parsed_data.unit_types;
         let units_size = parse_units.len();
 
         let chunk_size = (units_size + number_of_threads - 1) / number_of_threads; // Calculate chunk size
@@ -186,12 +186,12 @@ impl Markdown2Html {
 
         let html_body = final_output.join("\n");
         self.configurator
-            .frame_page(&self.parse_context.frontmatter, html_body)
+            .frame_page(&self.parsed_data.frontmatter, html_body)
     }
 
-    fn analyze_input(input: Vec<Line>, frontmatter: Option<Frontmatter>) -> ParseContext {
-        let mut context = ParseContext {
-            parse_units: vec![],
+    fn parse(input: Vec<Line>, frontmatter: Option<Frontmatter>) -> ParsedData {
+        let mut context = ParsedData {
+            units: vec![],
             unit_types: vec![],
             title: if let Some(frontmatter) = &frontmatter {
                 frontmatter.get_string("title")
@@ -219,7 +219,7 @@ impl Markdown2Html {
                             multiline_counter += 1;
                             continue;
                         } else {
-                            context.parse_units.push(Arc::from(
+                            context.units.push(Arc::from(
                                 &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
@@ -230,7 +230,7 @@ impl Markdown2Html {
                             multiline_counter += 1;
                             continue;
                         } else {
-                            context.parse_units.push(Arc::from(
+                            context.units.push(Arc::from(
                                 &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
@@ -240,7 +240,7 @@ impl Markdown2Html {
                         multiline_counter += 1;
 
                         if line.starts_with("$$") {
-                            context.parse_units.push(Arc::from(
+                            context.units.push(Arc::from(
                                 &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
@@ -251,7 +251,7 @@ impl Markdown2Html {
                         multiline_counter += 1;
 
                         if count_leading_chars(line, '`') == pattern_size {
-                            context.parse_units.push(Arc::from(
+                            context.units.push(Arc::from(
                                 &input[line_start..line_start + multiline_counter],
                             ));
                             multiline_state = false;
@@ -297,7 +297,7 @@ impl Markdown2Html {
             ] {
                 if line.starts_with(pattern) {
                     context.unit_types.push(unit_type);
-                    context.parse_units.push(Arc::from(&input[i..i + 1]));
+                    context.units.push(Arc::from(&input[i..i + 1]));
 
                     if unit_type == UnitType::Header(1) {
                         h1_counter += 1;
@@ -308,14 +308,14 @@ impl Markdown2Html {
 
             if !input[i].is_empty() {
                 context.unit_types.push(UnitType::Text);
-                context.parse_units.push(Arc::from(&input[i..i + 1]));
+                context.units.push(Arc::from(&input[i..i + 1]));
             }
         }
 
         if multiline_state {
             let state_type = *context.unit_types.last().unwrap();
             if state_type == UnitType::List || state_type == UnitType::Blockquote {
-                context.parse_units.push(Arc::from(
+                context.units.push(Arc::from(
                     &input[line_start..line_start + multiline_counter],
                 ));
             }
@@ -340,7 +340,7 @@ impl Markdown2Html {
 
         if h1_counter != 1 && auto_insert_header && !context.title.trim().is_empty() {
             context.unit_types.insert(0, UnitType::Header(1));
-            context.parse_units.insert(
+            context.units.insert(
                 0,
                 Block::from(vec![Line::from(format!("# {}", context.title))].into_boxed_slice()),
             );
