@@ -269,7 +269,7 @@ impl Markdown2Html {
                 ("![[", UnitType::LocalLink),
                 ("![", UnitType::Image),
                 ("---", UnitType::HorizontalLine),
-                ("<!-- downtown:", UnitType::Intrinsic),
+                ("<!--::", UnitType::Intrinsic),
                 ("<", UnitType::RawText),
             ] {
                 if line.starts_with(pattern) {
@@ -553,12 +553,9 @@ fn process_intrinsic(markdown_unit: Block, _configurator: &Configurator) -> Stri
         .first()
         .unwrap()
         .trim()
-        .strip_prefix("<!--")
+        .strip_prefix("<!--::")
         .unwrap()
         .strip_suffix("-->")
-        .unwrap()
-        .trim()
-        .strip_prefix("downtown:")
         .unwrap()
         .trim()
         .to_string()
