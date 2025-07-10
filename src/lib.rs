@@ -30,7 +30,8 @@ enum UnitType {
     Blockquote,
     HorizontalLine,
     LocalLink,
-    RawText, // e.x. for html tags
+    RawText,   // e.x. for html tags
+    Intrinsic, // strings like  `<!-- downtown: <div class="kek"> -->` which are the same as RawText but are not visible by markdown viewers
 }
 
 struct ParsedData {
@@ -268,6 +269,7 @@ impl Markdown2Html {
                 ("![[", UnitType::LocalLink),
                 ("![", UnitType::Image),
                 ("---", UnitType::HorizontalLine),
+                ("<!-- downtown:", UnitType::Intrinsic),
                 ("<", UnitType::RawText),
             ] {
                 if line.starts_with(pattern) {
@@ -340,6 +342,7 @@ fn process_unit(markdown_unit: Block, unit_type: UnitType, configurator: &Config
         UnitType::Blockquote => process_blockquote,
         UnitType::HorizontalLine => process_horizontal_line,
         UnitType::RawText => process_raw_text,
+        UnitType::Intrinsic => process_intrinsic,
         _ => process_text,
     };
 
@@ -542,6 +545,23 @@ fn process_horizontal_line(markdown_unit: Block, configurator: &Configurator) ->
 fn process_raw_text(markdown_unit: Block, _configurator: &Configurator) -> String {
     assert_eq!(markdown_unit.len(), 1);
     markdown_unit.first().unwrap().trim().to_string()
+}
+
+fn process_intrinsic(markdown_unit: Block, _configurator: &Configurator) -> String {
+    assert_eq!(markdown_unit.len(), 1);
+    markdown_unit
+        .first()
+        .unwrap()
+        .trim()
+        .strip_prefix("<!--")
+        .unwrap()
+        .strip_suffix("-->")
+        .unwrap()
+        .trim()
+        .strip_prefix("downtown:")
+        .unwrap()
+        .trim()
+        .to_string()
 }
 
 fn process_inline_formatting(s: impl Into<String>, configurator: &Configurator) -> String {
