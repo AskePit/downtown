@@ -385,7 +385,8 @@ fn parse_code(
             // Numbers (simple detection of integers and floats)
             let mut end = 0;
             while end < remainder.len()
-                && remainder[end..].starts_with(|c: char| c.is_ascii_digit() || c == '.')
+                // `'` and `_` are needed for C++ `100'000'000` and Rust's `100_000_000` case
+                && remainder[end..].starts_with(|c: char| c.is_ascii_digit() || c == '.' || c == '\'' || c == '_')
             {
                 end += 1;
             }
