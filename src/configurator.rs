@@ -1,6 +1,7 @@
 use crate::frontmatter_parser::Frontmatter;
 use crate::toml_parser::TomlDoc;
 use crate::utils::StrUtils;
+use crate::CellAlign;
 use crate::Level;
 
 #[derive(Clone)]
@@ -14,6 +15,12 @@ pub(crate) struct Configurator {
     code: String,
     code_inline: String,
     blockquote: String,
+    table: String,
+    table_head: String,
+    table_body: String,
+    table_row: String,
+    table_header_cell: String,
+    table_cell: String,
     horizontal_line: String,
     paragraph: String,
     bold: String,
@@ -41,6 +48,12 @@ impl Default for Configurator {
             code: r#"<pre><code class="language-{{lang}}">{{text}}</code></pre>"#.to_string(),
             code_inline: r#"<code>{{text}}</code>"#.to_string(),
             blockquote: r#"<blockquote>{{text}}</blockquote>"#.to_string(),
+            table: "<table>{{text}}</table>".to_string(),
+            table_head: "<thead>{{text}}</thead>".to_string(),
+            table_body: "<tbody>{{text}}</tbody>".to_string(),
+            table_row: "<tr>{{text}}</tr>".to_string(),
+            table_header_cell: "<th{{align}}>{{text}}</th>".to_string(),
+            table_cell: "<td{{align}}>{{text}}</td>".to_string(),
             horizontal_line: "<hr>".to_string(),
             paragraph: "<p>{{text}}</p>".to_string(),
             bold: "<b>{{text}}</b>".to_string(),
@@ -97,6 +110,30 @@ impl Configurator {
             blockquote: doc
                 .get("tags", "blockquote")
                 .unwrap_or(&default_config.blockquote)
+                .clone(),
+            table: doc
+                .get("tags", "table")
+                .unwrap_or(&default_config.table)
+                .clone(),
+            table_head: doc
+                .get("tags", "table-head")
+                .unwrap_or(&default_config.table_head)
+                .clone(),
+            table_body: doc
+                .get("tags", "table-body")
+                .unwrap_or(&default_config.table_body)
+                .clone(),
+            table_row: doc
+                .get("tags", "table-row")
+                .unwrap_or(&default_config.table_row)
+                .clone(),
+            table_header_cell: doc
+                .get("tags", "table-header-cell")
+                .unwrap_or(&default_config.table_header_cell)
+                .clone(),
+            table_cell: doc
+                .get("tags", "table-cell")
+                .unwrap_or(&default_config.table_cell)
                 .clone(),
             horizontal_line: doc
                 .get("tags", "horizontal-line")
@@ -205,6 +242,34 @@ impl Configurator {
         self.blockquote.better_replace("{{text}}", text)
     }
 
+    pub fn process_table(&self, text: &str) -> String {
+        self.table.better_replace("{{text}}", text)
+    }
+
+    pub fn process_table_head(&self, text: &str) -> String {
+        self.table_head.better_replace("{{text}}", text)
+    }
+
+    pub fn process_table_body(&self, text: &str) -> String {
+        self.table_body.better_replace("{{text}}", text)
+    }
+
+    pub fn process_table_row(&self, text: &str) -> String {
+        self.table_row.better_replace("{{text}}", text)
+    }
+
+    pub fn process_table_header_cell(&self, align: CellAlign, text: &str) -> String {
+        self.table_header_cell
+            .better_replace("{{align}}", &align_attr(align))
+            .better_replace("{{text}}", text)
+    }
+
+    pub fn process_table_cell(&self, align: CellAlign, text: &str) -> String {
+        self.table_cell
+            .better_replace("{{align}}", &align_attr(align))
+            .better_replace("{{text}}", text)
+    }
+
     pub fn process_horizontal_line(&self) -> String {
         self.horizontal_line.clone()
     }
@@ -253,5 +318,14 @@ impl Configurator {
 
     pub fn process_error(&self, text: &str) -> String {
         self.error.better_replace("{{text}}", text)
+    }
+}
+
+fn align_attr(align: CellAlign) -> String {
+    match align {
+        CellAlign::None => String::new(),
+        CellAlign::Left => r#" style="text-align:left""#.to_string(),
+        CellAlign::Right => r#" style="text-align:right""#.to_string(),
+        CellAlign::Center => r#" style="text-align:center""#.to_string(),
     }
 }

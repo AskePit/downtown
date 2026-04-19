@@ -14,24 +14,44 @@ pub(crate) struct Frontmatter {
 impl Frontmatter {
     // returns parsed frontmatter and a markdown without frontmatter
     pub(crate) fn load(whole_markdown: &str) -> (Option<Self>, &str) {
-        let mut indices = whole_markdown.match_indices("---").map(|x| x.0).take(2);
-        let start_index = indices.next();
-        let end_index = indices.next();
-
-        if start_index.is_none() || end_index.is_none() {
+        // Frontmatter must start with `---` on the very first line.
+        if !whole_markdown.starts_with("---") {
             return (None, whole_markdown);
         }
+        let after_opening_delim = &whole_markdown[3..];
+        // The char after `---` must be a line terminator (or EOF) — otherwise it's not a fence.
+        if let Some(c) = after_opening_delim.chars().next() {
+            if c != '\n' && c != '\r' {
+                return (None, whole_markdown);
+            }
+        }
 
-        let start_index = start_index.unwrap();
-        let end_index = end_index.unwrap();
+        // Find a closing `---` on its own line.
+        let mut search_offset = 0;
+        let end_index = loop {
+            let rel = match after_opening_delim[search_offset..].find("---") {
+                Some(pos) => pos,
+                None => return (None, whole_markdown),
+            };
+            let abs = search_offset + rel;
+            let at_line_start = abs == 0
+                || after_opening_delim.as_bytes()[abs - 1] == b'\n'
+                || after_opening_delim.as_bytes()[abs - 1] == b'\r';
+            let after = after_opening_delim.get(abs + 3..abs + 4);
+            let at_line_end = after.map_or(true, |s| s == "\n" || s == "\r");
+            if at_line_start && at_line_end {
+                break abs + 3; // offset within after_opening_delim
+            }
+            search_offset = abs + 3;
+        };
 
         let mut res = Self {
             vars: HashMap::new(),
         };
 
-        res.parse(whole_markdown[start_index + 3..end_index].trim());
+        res.parse(after_opening_delim[..end_index - 3].trim());
 
-        (Some(res), (whole_markdown[end_index + 3..].trim()))
+        (Some(res), after_opening_delim[end_index..].trim())
     }
 
     // returns end index

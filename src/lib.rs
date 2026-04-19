@@ -28,6 +28,7 @@ enum UnitType {
     Latex,
     Code,
     Blockquote,
+    Table,
     HorizontalLine,
     LocalLink,
     RawText,   // e.x. for html tags
@@ -234,9 +235,32 @@ impl Markdown2Html {
                         }
                         continue;
                     }
+                    UnitType::Table => {
+                        if line.trim_start().starts_with('|') {
+                            multiline_counter += 1;
+                            continue;
+                        } else {
+                            context.units.push(Arc::from(
+                                &input[line_start..line_start + multiline_counter],
+                            ));
+                            multiline_state = false;
+                        }
+                    }
 
                     _ => {}
                 }
+            }
+
+            // table start: line starts with `|` and next line is a separator row
+            if line.trim_start().starts_with('|')
+                && i + 1 < input.len()
+                && is_table_separator(&input[i + 1])
+            {
+                context.unit_types.push(UnitType::Table);
+                multiline_state = true;
+                multiline_counter = 1;
+                line_start = i;
+                continue 'outer;
             }
 
             // multiline patterns
@@ -291,7 +315,10 @@ impl Markdown2Html {
 
         if multiline_state {
             let state_type = *context.unit_types.last().unwrap();
-            if state_type == UnitType::List || state_type == UnitType::Blockquote {
+            if state_type == UnitType::List
+                || state_type == UnitType::Blockquote
+                || state_type == UnitType::Table
+            {
                 context.units.push(Arc::from(
                     &input[line_start..line_start + multiline_counter],
                 ));
@@ -340,6 +367,7 @@ fn process_unit(markdown_unit: Block, unit_type: UnitType, configurator: &Config
         UnitType::Latex => process_latex,
         UnitType::Code => process_code,
         UnitType::Blockquote => process_blockquote,
+        UnitType::Table => process_table,
         UnitType::HorizontalLine => process_horizontal_line,
         UnitType::RawText => process_raw_text,
         UnitType::Intrinsic => process_intrinsic,
@@ -535,6 +563,98 @@ fn process_blockquote(markdown_unit: Block, configurator: &Configurator) -> Stri
     let html = parser.generate_html_single_threaded();
 
     configurator.process_blockquote(&html)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum CellAlign {
+    None,
+    Left,
+    Right,
+    Center,
+}
+
+fn is_table_separator(line: &str) -> bool {
+    let trimmed = line.trim();
+    let inner = trimmed.trim_start_matches('|').trim_end_matches('|');
+    if inner.is_empty() {
+        return false;
+    }
+    inner.split('|').all(|cell| {
+        let c = cell.trim();
+        if c.is_empty() {
+            return false;
+        }
+        let c = c.strip_prefix(':').unwrap_or(c);
+        let c = c.strip_suffix(':').unwrap_or(c);
+        !c.is_empty() && c.chars().all(|ch| ch == '-')
+    })
+}
+
+fn split_table_row(line: &str) -> Vec<&str> {
+    let trimmed = line.trim();
+    let inner = trimmed
+        .strip_prefix('|')
+        .unwrap_or(trimmed)
+        .strip_suffix('|')
+        .unwrap_or_else(|| trimmed.strip_prefix('|').unwrap_or(trimmed));
+    inner.split('|').map(|c| c.trim()).collect()
+}
+
+fn parse_alignments(separator: &str) -> Vec<CellAlign> {
+    split_table_row(separator)
+        .iter()
+        .map(|c| {
+            let left = c.starts_with(':');
+            let right = c.ends_with(':');
+            match (left, right) {
+                (true, true) => CellAlign::Center,
+                (true, false) => CellAlign::Left,
+                (false, true) => CellAlign::Right,
+                (false, false) => CellAlign::None,
+            }
+        })
+        .collect()
+}
+
+fn process_table(markdown_unit: Block, configurator: &Configurator) -> String {
+    if markdown_unit.len() < 2 {
+        return String::new();
+    }
+
+    let header_cells = split_table_row(&markdown_unit[0]);
+    let alignments = parse_alignments(&markdown_unit[1]);
+
+    let col_count = header_cells.len();
+    let get_align = |i: usize| *alignments.get(i).unwrap_or(&CellAlign::None);
+
+    let header_html = header_cells
+        .iter()
+        .enumerate()
+        .map(|(i, cell)| {
+            let text = process_inline_formatting(*cell, configurator);
+            configurator.process_table_header_cell(get_align(i), &text)
+        })
+        .collect::<String>();
+    let head = configurator.process_table_head(&configurator.process_table_row(&header_html));
+
+    let body_rows = markdown_unit[2..]
+        .iter()
+        .filter(|l| !l.trim().is_empty())
+        .map(|line| {
+            let cells = split_table_row(line);
+            let row_html = (0..col_count)
+                .map(|i| {
+                    let raw = cells.get(i).copied().unwrap_or("");
+                    let text = process_inline_formatting(raw, configurator);
+                    configurator.process_table_cell(get_align(i), &text)
+                })
+                .collect::<String>();
+            configurator.process_table_row(&row_html)
+        })
+        .collect::<String>();
+    let body = configurator.process_table_body(&body_rows);
+
+    configurator.process_table(&format!("{}{}", head, body))
 }
 
 fn process_horizontal_line(markdown_unit: Block, configurator: &Configurator) -> String {
@@ -750,6 +870,73 @@ mod tests {
 
         let ms = total_time.as_millis();
         println!("  {} ms", ms);
+    }
+
+    #[test]
+    fn table_basic() {
+        let input = "\
+| Name | Age |
+|------|-----|
+| Alice | 30 |
+| Bob | 25 |
+"
+        .to_string();
+        let generator = Markdown2Html::new(input);
+        let html = generator.generate_html();
+        assert!(html.contains("<table>"));
+        assert!(html.contains("<thead>"));
+        assert!(html.contains("<th>Name</th>"));
+        assert!(html.contains("<th>Age</th>"));
+        assert!(html.contains("<tbody>"));
+        assert!(html.contains("<td>Alice</td>"));
+        assert!(html.contains("<td>30</td>"));
+        assert!(html.contains("<td>Bob</td>"));
+        assert!(html.contains("</table>"));
+    }
+
+    #[test]
+    fn table_alignments() {
+        let input = "\
+| L | C | R |
+|:--|:-:|--:|
+| a | b | c |
+"
+        .to_string();
+        let generator = Markdown2Html::new(input);
+        let html = generator.generate_html();
+        assert!(html.contains(r#"<th style="text-align:left">L</th>"#));
+        assert!(html.contains(r#"<th style="text-align:center">C</th>"#));
+        assert!(html.contains(r#"<th style="text-align:right">R</th>"#));
+        assert!(html.contains(r#"<td style="text-align:left">a</td>"#));
+        assert!(html.contains(r#"<td style="text-align:center">b</td>"#));
+        assert!(html.contains(r#"<td style="text-align:right">c</td>"#));
+    }
+
+    #[test]
+    fn table_with_inline_formatting() {
+        let input = "\
+| H |
+|---|
+| **bold** |
+| `code` |
+"
+        .to_string();
+        let generator = Markdown2Html::new(input);
+        let html = generator.generate_html();
+        assert!(html.contains("<b>bold</b>"));
+        assert!(html.contains("<code>code</code>"));
+    }
+
+    #[test]
+    fn pipe_line_without_separator_is_not_table() {
+        let input = "\
+| not a table
+some text
+"
+        .to_string();
+        let generator = Markdown2Html::new(input);
+        let html = generator.generate_html();
+        assert!(!html.contains("<table>"));
     }
 
     #[test]
