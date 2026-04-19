@@ -707,12 +707,85 @@ fn process_inline_formatting(s: impl Into<String>, configurator: &Configurator) 
         configurator.process_strikethrough(text)
     });
     res = process_links(&res, configurator);
+    res = unescape_markdown_chars(&res);
 
     res
 }
 
 fn escape_characters(text: String) -> String {
     text.better_replace("<", "&lt;").better_replace(">", "&gt;")
+}
+
+// Markdown special characters whose `\X` form should be rendered as literal `X`.
+const ESCAPABLE_CHARS: &[char] = &[
+    '\\', '`', '*', '_', '{', '}', '[', ']', '(', ')', '#', '+', '-', '.', '!', '|', '~', '<', '>',
+];
+
+// Returns true if the byte at `byte_index` is escaped, i.e. preceded by an odd number of
+// unescaped backslashes. Escapes inside inline code spans (`<code>...</code>`) are ignored.
+fn is_escaped(text: &str, byte_index: usize) -> bool {
+    if is_inside_inline_code(text, byte_index) {
+        return false;
+    }
+    let bytes = text.as_bytes();
+    let mut count = 0usize;
+    let mut i = byte_index;
+    while i > 0 && bytes[i - 1] == b'\\' {
+        count += 1;
+        i -= 1;
+    }
+    count % 2 == 1
+}
+
+// Checks whether `byte_index` falls inside an inline `<code>...</code>` span that was produced
+// earlier in the pipeline. Content inside such spans must be treated as literal.
+fn is_inside_inline_code(text: &str, byte_index: usize) -> bool {
+    let mut search_from = 0usize;
+    while let Some(open_rel) = text[search_from..].find("<code>") {
+        let open = search_from + open_rel;
+        let content_start = open + "<code>".len();
+        let close = match text[content_start..].find("</code>") {
+            Some(p) => content_start + p,
+            None => return false,
+        };
+        if byte_index >= content_start && byte_index < close {
+            return true;
+        }
+        search_from = close + "</code>".len();
+        if search_from > byte_index && open > byte_index {
+            return false;
+        }
+    }
+    false
+}
+
+// Strip the leading backslash from `\X` sequences for markdown-special `X`. Leaves content
+// inside inline `<code>...</code>` spans untouched so code remains literal. Also handles
+// `\&lt;` / `\&gt;` — `<` and `>` are pre-escaped by `escape_characters` before we run.
+fn unescape_markdown_chars(text: &str) -> String {
+    let mut res = String::with_capacity(text.len());
+    let mut iter = text.char_indices();
+    while let Some((i, ch)) = iter.next() {
+        if ch == '\\' && !is_inside_inline_code(text, i) {
+            let rest = &text[i + 1..];
+            if let Some(entity) = ["&lt;", "&gt;"].iter().find(|e| rest.starts_with(*e)) {
+                res.push_str(entity);
+                for _ in 0..entity.len() {
+                    iter.next();
+                }
+                continue;
+            }
+            if let Some(next) = rest.chars().next() {
+                if ESCAPABLE_CHARS.contains(&next) {
+                    res.push(next);
+                    iter.next();
+                    continue;
+                }
+            }
+        }
+        res.push(ch);
+    }
+    res
 }
 
 fn byte_index_to_char_index(text: &str, byte_index: usize) -> usize {
@@ -728,7 +801,10 @@ fn process_symmetric_inline_pattern(
 ) -> String {
     let mut res = text.to_string();
 
-    let pattern_indices = text.match_indices(markdown_pattern).map(|x| x.0);
+    let pattern_indices = text
+        .match_indices(markdown_pattern)
+        .map(|x| x.0)
+        .filter(|&idx| !is_escaped(text, idx));
 
     let pattern_indices = if check_on_identifiers {
         let mut head = false;
@@ -798,29 +874,30 @@ fn process_links(text: &str, configurator: &Configurator) -> String {
     let mut to_replace: Vec<(Range<usize>, &str, &str)> = vec![];
 
     for (i, ch) in text.char_indices() {
+        let escaped = matches!(ch, '[' | ']' | '(' | ')') && is_escaped(text, i);
         match state {
             State::None => {
-                if ch == '[' {
+                if ch == '[' && !escaped {
                     state = State::CaptionStart(i);
                 }
             }
             State::CaptionStart(start) => {
-                if ch == ']' {
+                if ch == ']' && !escaped {
                     state = State::CaptionEnd(start);
                 }
             }
             State::CaptionEnd(start) => {
-                if ch == '(' {
+                if ch == '(' && !escaped {
                     state = State::LinkStart(start, i);
                 } else {
                     state = State::None;
-                    if ch == '[' {
+                    if ch == '[' && !escaped {
                         state = State::CaptionStart(i);
                     }
                 }
             }
             State::LinkStart(caption_start, link_start) => {
-                if ch == ')' {
+                if ch == ')' && !escaped {
                     let link_end = i;
 
                     let caption = &text[caption_start + 1..link_start - 1];
@@ -937,6 +1014,71 @@ some text
         let generator = Markdown2Html::new(input);
         let html = generator.generate_html();
         assert!(!html.contains("<table>"));
+    }
+
+    #[test]
+    fn escape_brackets() {
+        let input = "this is \\[not a link\\]\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains("[not a link]"));
+        assert!(!html.contains("<a "));
+        assert!(!html.contains('\\'));
+    }
+
+    #[test]
+    fn escape_allows_real_link_nearby() {
+        let input = "\\[literal\\] and [real](https://x) link\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains("[literal]"));
+        assert!(html.contains(r#"<a href="https://x">real</a>"#));
+    }
+
+    #[test]
+    fn escape_asterisk_prevents_italic_and_bold() {
+        let input = "\\*not italic\\* and \\*\\*not bold\\*\\*\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains("*not italic*"));
+        assert!(html.contains("**not bold**"));
+        assert!(!html.contains("<i>"));
+        assert!(!html.contains("<b>"));
+    }
+
+    #[test]
+    fn escape_backtick_prevents_code() {
+        let input = "\\`not code\\`\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains("`not code`"));
+        assert!(!html.contains("<code>"));
+    }
+
+    #[test]
+    fn double_backslash_yields_literal_backslash() {
+        let input = "path\\\\to\\\\file\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains(r"path\to\file"));
+    }
+
+    #[test]
+    fn escape_inside_inline_code_is_literal() {
+        let input = "`\\[literal\\]`\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains(r"<code>\[literal\]</code>"));
+    }
+
+    #[test]
+    fn escape_tilde_prevents_strikethrough() {
+        let input = "\\~\\~not struck\\~\\~\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains("~~not struck~~"));
+        assert!(!html.contains("<s>"));
+    }
+
+    #[test]
+    fn escape_angle_brackets() {
+        let input = "\\<tag\\>\n".to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains("&lt;tag&gt;"));
+        assert!(!html.contains('\\'));
     }
 
     #[test]
