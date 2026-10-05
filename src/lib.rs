@@ -307,6 +307,19 @@ impl Markdown2Html {
                 }
             }
 
+            // indented html tags, e.g. `  <summary>` nested inside `<details>`
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("<!--::") {
+                context.unit_types.push(UnitType::Intrinsic);
+                context.units.push(Arc::from(&input[i..i + 1]));
+                continue 'outer;
+            }
+            if trimmed.starts_with('<') {
+                context.unit_types.push(UnitType::RawText);
+                context.units.push(Arc::from(&input[i..i + 1]));
+                continue 'outer;
+            }
+
             if !input[i].is_empty() {
                 context.unit_types.push(UnitType::Text);
                 context.units.push(Arc::from(&input[i..i + 1]));
@@ -1079,6 +1092,22 @@ some text
         let html = Markdown2Html::new(input).generate_html();
         assert!(html.contains("&lt;tag&gt;"));
         assert!(!html.contains('\\'));
+    }
+
+    #[test]
+    fn indented_html_tags_are_not_escaped() {
+        let input = "\
+<details>
+  <summary>Cheat sheet</summary>
+
+text
+
+</details>
+"
+        .to_string();
+        let html = Markdown2Html::new(input).generate_html();
+        assert!(html.contains("<summary>Cheat sheet</summary>"));
+        assert!(!html.contains("&lt;summary"));
     }
 
     #[test]
